@@ -83,7 +83,6 @@ export function FeishuConnectionSettings({
       setChecking(false);
     }
   }, [initialAuth]);
-  const mountedAuth = useRef(initialAuth);
   const operationVersion = useRef(0);
   useEffect(() => {
     let disposed = false;
@@ -91,8 +90,7 @@ export function FeishuConnectionSettings({
     void experimentsRequest<FeishuAuthStatus>({ action: "feishuAuthStatus" })
       .then((status) => {
         if (!disposed && version === operationVersion.current) {
-          if (mountedAuth.current) setFlow(status.pendingAuthorization);
-          else publishStatus(status);
+          publishStatus(status);
         }
       })
       .catch((error) => {
@@ -175,7 +173,7 @@ export function FeishuConnectionSettings({
           }
           control={
             <div className="feishu-connection-actions">
-              {!auth && !checking && (
+              {!checking && (
                 <Button
                   variant="outline"
                   size="lg"
