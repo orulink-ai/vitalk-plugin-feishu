@@ -417,7 +417,27 @@ it("uses one reauthorization entry for all permissions and shows partial grants"
   expect(experimentsRequest).not.toHaveBeenCalledWith({action:"feishuCalendarAuthStart"});
 });
 
+it("refreshes a disconnected parent snapshot from native status", async () => {
+  const notify = vi.fn();
+  vi.mocked(experimentsRequest).mockImplementation(async (request) => (request.action === "feishuAuthStatus" ? { connected: true, message: "最新已连接" } : { installed: true }) as never);
+  render(<FeishuConnectionSettings model="llm" onModelChange={vi.fn()} initialAuth={{connected:false,message:"旧未连接"}} onStatusChange={notify} />);
+  await screen.findByText("最新已连接");
+  expect(screen.getByRole("button", {name:"更新通讯录"})).toHaveProperty("disabled", false);
+  expect(notify).toHaveBeenCalledExactlyOnceWith({connected:true,message:"最新已连接"});
+});
+
+it("keeps recheck available for a disconnected snapshot", async () => {
+  vi.mocked(experimentsRequest).mockImplementation(async (request) => (request.action === "feishuAuthStatus" ? { connected: false, message: "未授权" } : { installed: true }) as never);
+  render(<FeishuConnectionSettings model="llm" onModelChange={vi.fn()} initialAuth={{connected:false,message:"旧未连接"}} />);
+  await waitFor(() => expect(screen.getByRole("button", {name:"重新检查"})).toHaveProperty("disabled", false));
+  vi.mocked(experimentsRequest).mockResolvedValue({connected:true,message:"重查已连接"} as never);
+  fireEvent.click(screen.getByRole("button", {name:"重新检查"}));
+  await screen.findByText("重查已连接");
+});
+
 it("does not echo the controlled authorization snapshot back into its parent", async () => {
+  // A prop update must not echo; a completed native check is a new observation.
+  vi.mocked(experimentsRequest).mockImplementation(() => new Promise(() => {}));
   const notify = vi.fn();
   const initialAuth = { connected: true, message: "父页面授权快照" };
   const view = render(

@@ -10,7 +10,7 @@ describe('独立飞书安装包',()=>{
     const pkg=JSON.parse(bytes.toString());
     expect(pkg.format).toBe('vitalk-plugin/v1');
     expect(pkg.manifest.id).toBe('vitalk-plugin-feishu');
-    expect(pkg.manifest.version).toBe('0.1.1');
+    expect(pkg.manifest.version).toBe('0.1.2');
     expect(pkg.manifest.permissions).toEqual(['feishu.messages','feishu.tasks','feishu.calendar']);
     expect(pkg.html).toContain('feishu.request');
     expect(pkg.html).not.toContain('__TAURI_INTERNALS__');
