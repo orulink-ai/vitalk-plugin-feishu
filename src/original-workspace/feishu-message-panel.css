@@ -1,0 +1,613 @@
+/* A compact composer, shared by the message workspace and native confirmation window. */
+.feishu-message-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  min-width: 0;
+  color: #f5f5f7;
+  font-size: 14px;
+  line-height: 1.5;
+  outline: none;
+}
+.feishu-message-scroll {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  gap: 10px;
+  min-height: 0;
+  overflow: auto;
+  scrollbar-width: thin;
+}
+.feishu-message-panel p {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.feishu-message-panel .feishu-message-recipient {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  width: 100%;
+  min-height: 56px;
+  height: auto;
+  padding: 10px 12px;
+  padding-right: 48px;
+  border: 0;
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.09);
+  text-align: left;
+  color: inherit;
+}
+.feishu-recipient-avatar {
+  display: flex;
+  position: relative;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  overflow: hidden;
+  border-radius: 50%;
+}
+.feishu-recipient-avatar [data-slot="avatar-fallback"] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  background: #42434d;
+  color: #eee;
+  font-size: 15px;
+  border-radius: 50%;
+}
+.feishu-recipient-avatar [data-slot="avatar-image"] {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+.feishu-recipient-identity {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+  gap: 3px;
+}
+.feishu-recipient-identity .feishu-recipient-heading {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 16px;
+  color: #f5f5f7;
+}
+.feishu-recipient-identity strong {
+  font-weight: 500;
+}
+.feishu-recipient-identity > span {
+  font-size: 12px;
+  color: #a9a9b4;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.feishu-message-field {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.feishu-message-panel textarea {
+  width: 100%;
+  min-height: 90px;
+  max-height: 180px;
+  padding: 10px 12px;
+  box-sizing: border-box;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  outline: none;
+  color: inherit;
+  font: inherit;
+  font-size: 18px;
+  line-height: 1.6;
+  resize: none;
+  overflow: auto;
+  caret-color: #9cafff;
+}
+.feishu-message-panel textarea:focus-visible {
+  border: 0;
+  box-shadow: none;
+  outline: none;
+}
+.feishu-message-panel button:focus-visible {
+  outline: 2px solid #a5b4fc;
+  outline-offset: 2px;
+}
+.feishu-message-panel button {
+  cursor: pointer;
+  font: inherit;
+}
+.feishu-message-panel button:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+.feishu-message-actions {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 12px;
+  padding: 0 8px 0 4px;
+}
+.feishu-message-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: auto;
+}
+.feishu-message-panel .feishu-message-tools button {
+  border: 0;
+  background: transparent;
+  color: #a9a9b4;
+  padding: 4px;
+  min-height: 30px;
+}
+.feishu-message-panel .feishu-message-disclosure {
+  font-size: 11px;
+}
+.feishu-message-status {
+  font-size: 12px;
+  color: #aaaab4;
+}
+.feishu-message-panel .feishu-message-send {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
+  flex: 0 0 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: #fff;
+  color: #16171b;
+}
+.feishu-message-panel .feishu-message-send:hover:not(:disabled) {
+  background: #e7e9f0;
+}
+.feishu-send-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.feishu-message-panel .feishu-message-hint {
+  font-size: 10px;
+  color: #91919e;
+  padding: 0 10px;
+  text-align: right;
+}
+.feishu-message-hint kbd {
+  font: inherit;
+}
+.feishu-message-prompt {
+  padding: 8px 12px;
+  font-size: 12px;
+  color: #aaaab4;
+  max-height: 70px;
+  overflow: auto;
+}
+.feishu-recipient-picker {
+  display: grid;
+  gap: 6px;
+  padding: 0 8px;
+}
+.feishu-recipient-search {
+  position: relative;
+}
+.feishu-recipient-search > svg {
+  position: absolute;
+  top: 11px;
+  left: 10px;
+  color: #a9a9b4;
+  pointer-events: none;
+}
+.feishu-message-panel .feishu-recipient-search input {
+  width: 100%;
+  height: 36px;
+  box-sizing: border-box;
+  padding: 8px 10px 8px 32px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  color: inherit;
+  font: inherit;
+  font-size: 12px;
+}
+.feishu-recipient-results {
+  display: grid;
+  gap: 3px;
+  max-height: 140px;
+  overflow: auto;
+}
+.feishu-message-panel .feishu-recipient-option {
+  display: flex;
+  justify-content: flex-start;
+  text-align: left;
+  height: auto;
+  min-height: 44px;
+  gap: 9px;
+  padding: 6px 9px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+}
+.feishu-recipient-option .feishu-recipient-avatar {
+  width: 28px;
+  height: 28px;
+  flex-basis: 28px;
+}
+.feishu-recipient-selected {
+  margin-left: auto;
+}
+.feishu-recipient-results p {
+  font-size: 12px;
+  color: #aaaab4;
+  padding: 8px;
+}
+.feishu-message-panel [role="alert"] {
+  padding: 0 12px;
+  font-size: 12px;
+  color: #ffb9b9;
+}
+.feishu-message-receipt {
+  padding: 0 12px;
+  font-size: 11px;
+  color: #aaaab4;
+  overflow-wrap: anywhere;
+}
+.experiment-notice-window.experiment-notice-message {
+  position: relative;
+  height: 100%;
+  gap: 0;
+  padding: 8px 8px 12px;
+  border: 1px solid rgba(183, 187, 214, 0.35);
+  border-radius: 24px;
+  background: rgba(35, 37, 48, 0.97);
+  backdrop-filter: blur(24px);
+}
+.experiment-notice-message .experiment-notice-header {
+  position: absolute;
+  top: 17px;
+  right: 18px;
+  z-index: 2;
+}
+.experiment-notice-message .experiment-notice-title {
+  display: none;
+}
+.experiment-notice-message .experiment-notice-close {
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+}
+.experiment-notice-message .experiment-notice-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.experiment-notice-message .feishu-message-panel {
+  flex: 1;
+}
+@media (max-width: 480px) {
+  .feishu-message-panel textarea {
+    font-size: 16px;
+  }
+  .feishu-recipient-identity .feishu-recipient-heading {
+    font-size: 14px;
+  }
+}
+
+.feishu-message-attachments {
+  margin: 8px 0 16px;
+}
+.feishu-message-attachments > p {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  margin-bottom: 8px;
+}
+.feishu-message-attachment-grid {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.feishu-message-attachment {
+  position: relative;
+  width: 104px;
+  height: 78px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--muted);
+}
+.feishu-message-attachment img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: inherit;
+}
+.feishu-message-attachment button {
+  position: absolute;
+  right: -6px;
+  top: -6px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--background);
+  border: 1px solid var(--border);
+  font-size: 18px;
+  line-height: 20px;
+  cursor: pointer;
+}
+.feishu-message-attachment button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* Recipient selection replaces the editor inside the same compact surface. */
+.feishu-message-panel [hidden] {
+  display: none !important;
+}
+.feishu-message-draft {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.feishu-message-choosing .feishu-message-scroll {
+  gap: 8px;
+  overflow: hidden;
+}
+.feishu-message-choosing .feishu-message-field {
+  flex: 1;
+}
+.feishu-recipient-picker {
+  min-height: 0;
+  height: 100%;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 8px;
+  padding: 0 4px;
+}
+.feishu-recipient-results {
+  max-height: none;
+  min-height: 0;
+  scrollbar-width: thin;
+}
+.feishu-message-panel .feishu-recipient-option {
+  align-items: center;
+  color: #f5f5f7;
+  min-height: 48px;
+  padding: 7px 10px;
+}
+.feishu-recipient-option .feishu-recipient-identity > strong {
+  font-size: 14px;
+}
+.feishu-recipient-option .feishu-recipient-identity > span {
+  font-size: 11px;
+  color: #b8b8c3;
+}
+.feishu-message-panel .feishu-recipient-option:hover,
+.feishu-message-panel .feishu-recipient-option.is-selected {
+  background: rgba(255, 255, 255, 0.08);
+}
+.feishu-recipient-selected {
+  color: #b8c5ff;
+}
+.feishu-picker-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8px;
+  flex-shrink: 0;
+  color: #a9a9b4;
+  font-size: 11px;
+}
+.feishu-message-panel .feishu-picker-footer button {
+  color: #e3e3ec;
+  background: rgba(255, 255, 255, 0.06);
+  border: 0;
+  border-radius: 8px;
+  font-size: 12px;
+}
+.feishu-message-panel .feishu-recipient-search input:focus-visible {
+  outline: 1px solid #a5b4fc;
+  outline-offset: 0;
+  box-shadow: none;
+  border-color: #a5b4fc;
+}
+
+.feishu-message-actions {
+  justify-content: flex-end;
+}
+
+/* Lighter recipient bar, with the editor and submit action on a shared inset. */
+.feishu-message-panel .feishu-message-recipient {
+  min-height: 48px;
+  padding-top: 7px;
+  padding-bottom: 7px;
+  background: rgba(255, 255, 255, 0.055);
+}
+.feishu-message-recipient .feishu-recipient-avatar {
+  width: 32px;
+  height: 32px;
+  flex-basis: 32px;
+}
+.feishu-recipient-identity .feishu-recipient-heading {
+  font-size: 15px;
+}
+.feishu-message-panel textarea {
+  min-height: 64px;
+  padding-top: 8px;
+}
+.feishu-message-scroll > .feishu-message-field:empty {
+  display: none;
+}
+.feishu-message-panel .feishu-recipient-option.is-active {
+  background: rgba(165, 180, 252, 0.13);
+  outline: 1px solid rgba(165, 180, 252, 0.6);
+  outline-offset: -1px;
+}
+.experiment-notice-message .experiment-notice-header {
+  top: 14px;
+}
+
+.feishu-message-panel > [role="alert"] {
+  flex-shrink: 0;
+  max-height: 90px;
+  overflow: auto;
+  padding: 6px 12px;
+}
+
+.feishu-recipient-feedback {
+  flex-shrink: 0;
+  padding: 0 8px 12px;
+  color: #c5c7d0;
+  font-size: 13px;
+  line-height: 1.5;
+  max-height: 150px;
+  overflow: auto;
+}
+.feishu-recipient-feedback p {
+  margin: 0 0 8px;
+}
+.feishu-recipient-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.feishu-recipient-suggestions button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #ffffff0a;
+  border: 1px solid #ffffff15;
+  border-radius: 12px;
+  padding: 8px 12px;
+  color: #f4f4f5;
+}
+.feishu-recipient-suggestions .feishu-recipient-avatar {
+  width: 28px;
+  height: 28px;
+}
+
+/* Confirmation metrics: 440px wide; 48px identity, 16px body, 36px action. */
+.experiment-notice-window.experiment-notice-message {
+  padding: 8px 16px 12px;
+  background: #24252b;
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 16px;
+  box-shadow: 0 8px 28px rgba(0,0,0,.22);
+}
+.experiment-notice-message .experiment-notice-header { top: 18px; right: 14px; }
+.experiment-notice-message .experiment-notice-close { width:28px; height:28px; background:transparent; }
+.experiment-notice-message .experiment-notice-close svg { width:16px; height:16px; }
+.feishu-message-panel .feishu-message-recipient {
+  min-height:48px; padding:6px 36px 6px 0; gap:10px;
+  border:0; border-bottom:1px solid rgba(255,255,255,.06);
+  border-radius:0; background:transparent;
+}
+.feishu-message-panel .feishu-message-recipient:hover:not(:disabled) { background:rgba(255,255,255,.025); }
+.feishu-recipient-avatar { width:28px; height:28px; flex-basis:28px; }
+.feishu-recipient-identity strong { font-weight:500; }
+.feishu-recipient-identity .feishu-recipient-heading { font-size:14px; }
+.feishu-recipient-identity > span { font-size:11px; color:#a1a1aa; }
+.feishu-message-panel textarea {
+  font-size:16px; line-height:1.55; color:#f4f4f5;
+  min-height:50px; max-height:149px; padding:6px 0; border-radius:4px;
+}
+.feishu-message-panel textarea::placeholder { color:#a1a1aa; }
+.feishu-message-panel textarea:focus-visible { background:transparent; box-shadow:inset 0 0 0 1px rgba(255,255,255,.16); }
+.feishu-message-actions { padding-inline:0; }
+.feishu-message-status { margin-right:auto; color:#a1a1aa; font-size:11px; }
+.feishu-message-panel .feishu-message-send { width:36px; height:36px; min-height:36px; flex-basis:36px; }
+.feishu-message-panel .feishu-message-send:disabled { opacity:.3; }
+
+.quick-message-editor .feishu-message-panel {
+  color: var(--foreground);
+  gap: 12px;
+}
+.quick-message-editor .feishu-message-panel p {
+  color: var(--muted-foreground);
+}
+.quick-message-editor .feishu-message-panel .feishu-message-recipient {
+  background: var(--muted);
+  border-color: var(--border);
+  padding-right: 12px;
+  min-height: 56px;
+}
+.quick-message-editor
+  .feishu-message-panel
+  .feishu-message-recipient:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--muted) 80%, var(--border));
+}
+.quick-message-editor .feishu-recipient-heading,
+.quick-message-editor .feishu-recipient-option {
+  color: var(--foreground);
+}
+.quick-message-editor .feishu-recipient-identity > span,
+.quick-message-editor .feishu-message-status,
+.quick-message-editor .feishu-picker-footer {
+  color: var(--muted-foreground);
+}
+.quick-message-editor .feishu-message-panel textarea {
+  color: var(--foreground);
+  background: var(--background);
+  font-size: 16px;
+  min-height: 96px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.quick-message-editor .feishu-message-panel textarea:focus-visible {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ring) 15%, transparent);
+}
+.quick-message-editor .feishu-message-panel textarea::placeholder {
+  color: var(--muted-foreground);
+}
+.quick-message-editor .feishu-message-panel .feishu-message-send {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+.quick-message-editor
+  .feishu-message-panel
+  .feishu-message-send:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--primary) 90%, var(--background));
+}
+.quick-message-editor .feishu-recipient-search input {
+  background: var(--background);
+  border-color: var(--border);
+  color: var(--foreground);
+}
+.quick-message-editor .feishu-recipient-option:hover,
+.quick-message-editor .feishu-recipient-option.is-selected {
+  background: var(--muted);
+}
+.quick-message-editor .feishu-recipient-option.is-active {
+  background: var(--muted);
+  outline-color: var(--ring);
+}
+.quick-message-editor .feishu-message-panel [role="alert"] {
+  color: var(--destructive);
+}
+.quick-message-editor > button {
+  margin-bottom: 14px;
+}
+@media (max-width: 480px) {
+  .feishu-message-panel textarea {
+    font-size: 16px;
+  }
+}

@@ -1,0 +1,622 @@
+/* Data controls share the workspace scale; the timeline owns its own scrolling. */
+.feishu-task-filter-panel {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  background: color-mix(in oklch, var(--muted) 35%, var(--background));
+}
+.feishu-task-filter-panel > [data-slot="field-group"] {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+.feishu-task-filter-panel [data-slot="field"] {
+  min-width: 0;
+  gap: 6px;
+}
+.feishu-task-filter-panel [data-slot="field-label"] {
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+.feishu-task-filter-panel [data-slot="select-trigger"] {
+  width: 100%;
+}
+.feishu-filter-number,
+.feishu-history-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  font-size: 11px;
+  background: var(--muted);
+  color: var(--muted-foreground);
+}
+.feishu-active-filters {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.feishu-active-filters > button {
+  font-size: 11px;
+}
+.feishu-filter-result {
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.feishu-execution-disclosure {
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+  margin-top: 4px;
+}
+.feishu-execution-disclosure > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  list-style: none;
+  font-size: 12px;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  padding: 5px 0;
+}
+.feishu-execution-disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+.feishu-execution-disclosure > summary > svg {
+  width: 15px;
+  height: 15px;
+}
+.feishu-execution-disclosure > summary > svg:last-child {
+  margin-left: auto;
+}
+.feishu-execution-disclosure[open] > summary > svg:last-child {
+  transform: rotate(180deg);
+}
+.feishu-execution-disclosure > .feishu-activity {
+  padding-top: 16px;
+}
+.feishu-calendar-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.feishu-calendar-view-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.feishu-calendar-period {
+  font-size: 14px;
+  font-weight: 550;
+  margin-inline: 3px 6px;
+  white-space: nowrap;
+}
+.feishu-calendar-toolbar .feishu-date-navigation input {
+  width: 135px;
+  font-size: 12px;
+}
+.feishu-calendar-fetch-state {
+  color: var(--muted-foreground);
+  font-size: 12px;
+  margin: 0;
+}
+.feishu-calendar-surface {
+  min-width: 0;
+}
+.feishu-calendar-empty-hint {
+  margin: 0;
+  border: 1px solid var(--border);
+  border-top: 0;
+  border-radius: 0 0 10px 10px;
+  padding: 10px 12px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.feishu-time-calendar {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.feishu-time-scroll {
+  max-height: clamp(340px, 55vh, 600px);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.feishu-time-inner {
+  min-width: calc(52px + var(--calendar-columns) * 92px);
+}
+.feishu-calendar-day-headings,
+.feishu-calendar-all-day,
+.feishu-calendar-time-body {
+  display: grid;
+  grid-template-columns: 52px repeat(var(--calendar-columns), minmax(0, 1fr));
+}
+.feishu-calendar-day-headings {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--background);
+  border-bottom: 1px solid var(--border);
+}
+.feishu-calendar-day-headings > div {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 55px;
+  border-left: 1px solid var(--border);
+}
+.feishu-calendar-day-headings > div > span {
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+.feishu-calendar-day-headings > div strong {
+  font-size: 16px;
+  font-weight: 550;
+}
+.feishu-calendar-day-headings > div[data-today="true"] strong {
+  display: grid;
+  place-items: center;
+  width: 27px;
+  height: 27px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+.feishu-calendar-zone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: var(--muted-foreground);
+}
+.feishu-calendar-all-day {
+  position: sticky;
+  top: 55px;
+  z-index: 2;
+  min-height: 33px;
+  background: var(--background);
+  border-bottom: 1px solid var(--border);
+}
+.feishu-calendar-all-day > span {
+  padding: 8px 0;
+  text-align: center;
+  font-size: 10px;
+  color: var(--muted-foreground);
+}
+.feishu-calendar-all-day > div {
+  border-left: 1px solid var(--border);
+  padding: 3px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.feishu-calendar-all-day button {
+  max-width: 100%;
+  justify-content: flex-start;
+  overflow: hidden;
+  font-size: 10px;
+  height: 22px;
+  min-height: 0;
+  white-space: nowrap;
+}
+.feishu-calendar-hour-axis {
+  display: flex;
+  flex-direction: column;
+}
+.feishu-calendar-hour-axis > span {
+  height: 48px;
+  font-size: 10px;
+  color: var(--muted-foreground);
+  text-align: center;
+  padding-top: 4px;
+}
+.feishu-calendar-time-column {
+  position: relative;
+  height: 1152px;
+  min-width: 0;
+  border-left: 1px solid var(--border);
+}
+.feishu-calendar-time-column[data-today="true"] {
+  background: color-mix(in oklch, var(--muted) 25%, transparent);
+}
+.feishu-calendar-hour-line {
+  height: 48px;
+  border-top: 1px solid var(--border);
+}
+.feishu-calendar-hour-line:after {
+  content: "";
+  display: block;
+  height: 24px;
+  border-bottom: 1px dotted color-mix(in oklch, var(--border) 65%, transparent);
+}
+.feishu-calendar-time-column .feishu-calendar-event {
+  position: absolute;
+  display: block;
+  min-height: 0;
+  padding: 2px 5px;
+  overflow: hidden;
+  text-align: left;
+  white-space: normal;
+  border: 1px solid color-mix(in oklch, var(--primary) 18%, var(--border));
+  border-left: 3px solid var(--primary);
+  border-radius: 5px;
+  background: color-mix(in oklch, var(--primary) 7%, var(--background));
+  box-shadow: none;
+  z-index: 1;
+}
+.feishu-calendar-event strong {
+  display: block;
+  font-size: 11px;
+  font-weight: 550;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 16px;
+}
+.feishu-calendar-event span {
+  display: block;
+  font-size: 10px;
+  color: var(--muted-foreground);
+  line-height: 14px;
+}
+.feishu-calendar-now {
+  position: absolute;
+  height: 1px;
+  background: var(--destructive);
+  left: 0;
+  right: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+.feishu-calendar-now:before {
+  content: "";
+  display: block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--destructive);
+  margin-top: -2px;
+}
+.feishu-month-calendar {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: auto;
+  max-height: 580px;
+}
+.feishu-month-calendar table {
+  table-layout: fixed;
+  width: 100%;
+  min-width: 644px;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.feishu-month-calendar th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 12px 4px;
+  background: var(--background);
+  color: var(--muted-foreground);
+  border-bottom: 1px solid var(--border);
+  font-weight: 400;
+}
+.feishu-month-calendar td {
+  height: 100px;
+  width: 14.285%;
+  vertical-align: top;
+  padding: 5px;
+  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+}
+.feishu-month-calendar td:last-child {
+  border-right: 0;
+}
+.feishu-month-calendar tr:last-child td {
+  border-bottom: 0;
+}
+.feishu-month-calendar td[data-outside="true"] {
+  background: var(--muted);
+  color: var(--muted-foreground);
+}
+.feishu-month-calendar td[data-today="true"] .feishu-month-day {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+.feishu-month-day {
+  border-radius: 50%;
+  width: 25px;
+  height: 25px;
+  padding: 0;
+  font-size: 12px;
+}
+.feishu-month-events {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 3px;
+}
+.feishu-month-events button {
+  justify-content: flex-start;
+  gap: 3px;
+  min-height: 0;
+  height: auto;
+  padding: 2px 3px;
+  border-radius: 4px;
+  background: var(--muted);
+  text-align: left;
+}
+.feishu-month-events span {
+  color: var(--muted-foreground);
+  font-size: 9px;
+}
+.feishu-month-events strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+  font-weight: 500;
+}
+.feishu-calendar-detail-body {
+  padding: 4px 16px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  overflow: auto;
+}
+.feishu-calendar-detail-body h3 {
+  font-size: 20px;
+  font-weight: 550;
+  overflow-wrap: anywhere;
+}
+.feishu-calendar-detail-body > div {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.feishu-calendar-detail-body > div > svg {
+  flex-shrink: 0;
+  width: 18px;
+  color: var(--muted-foreground);
+  margin-top: 2px;
+}
+.feishu-calendar-detail-body p {
+  font-size: 13px;
+  line-height: 1.7;
+  margin: 0;
+}
+.feishu-calendar-detail-body small {
+  display: block;
+  margin-top: 6px;
+  color: var(--muted-foreground);
+}
+@media (max-width: 800px) {
+  .feishu-task-filter-panel > [data-slot="field-group"] {
+    grid-template-columns: 1fr;
+  }
+  .feishu-calendar-toolbar {
+    align-items: flex-start;
+  }
+  .feishu-calendar-toolbar .feishu-date-navigation {
+    flex: 1 1 100%;
+  }
+}
+.feishu-calendar-detail-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+}
+
+.feishu-task-unassigned {
+  color: var(--muted-foreground);
+}
+.feishu-assignee-trigger {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  width: 100%;
+  max-width: 120px;
+  padding: 2px 4px;
+  margin: -2px -4px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.feishu-assignee-trigger:hover {
+  background: var(--muted);
+}
+.feishu-assignee-trigger:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.feishu-assignee-preview {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.feishu-assignee-count {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+.feishu-assignee-count svg {
+  width: 12px;
+  height: 12px;
+}
+.feishu-assignee-positioner {
+  z-index: 60;
+}
+.feishu-assignee-popover {
+  width: min(320px, calc(100vw - 32px));
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--popover);
+  color: var(--popover-foreground);
+  box-shadow: 0 8px 28px #00000016;
+  padding: 12px;
+}
+.feishu-assignee-popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.feishu-assignee-popover-header h2 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+.feishu-assignee-roster {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px 12px;
+  max-height: 260px;
+  overflow-y: auto;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 13px;
+}
+.feishu-assignee-roster li {
+  padding: 6px 0;
+  overflow-wrap: anywhere;
+}
+
+.feishu-custom-date-range {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding-top: 12px;
+  margin-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.feishu-custom-date-range p {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+
+/* Keep search, conditions and their summary in one continuous query surface. */
+.feishu-task-workspace {
+  gap: 12px;
+}
+.feishu-task-workspace .feishu-detail-header h2 {
+  font-size: 17px;
+  margin-bottom: 3px;
+}
+.feishu-task-workspace .feishu-detail-header p {
+  font-size: 12px;
+}
+.feishu-task-query {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--background);
+  overflow: hidden;
+}
+.feishu-task-query .feishu-list-toolbar {
+  padding: 12px;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+.feishu-task-query .feishu-list-toolbar > [data-slot="input"] {
+  max-width: none;
+  min-width: 0;
+  margin: 0;
+  order: 0;
+  flex: 1;
+  box-shadow: none;
+}
+.feishu-task-query .feishu-list-toolbar > button {
+  flex-shrink: 0;
+}
+.feishu-task-query .feishu-task-filter-panel {
+  border: 0;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+  padding: 12px;
+  background: color-mix(in oklch, var(--muted) 25%, var(--background));
+}
+.feishu-task-query .feishu-active-filters {
+  border-top: 1px solid var(--border);
+  padding: 8px 12px;
+  gap: 6px;
+}
+.feishu-task-query .feishu-active-filters > button {
+  height: 25px;
+  min-height: 25px;
+}
+.feishu-task-query .feishu-active-filters > button:last-child {
+  margin-left: auto;
+  color: var(--muted-foreground);
+}
+.feishu-query-results {
+  margin: 0;
+  font-size: 11px;
+  color: var(--muted-foreground);
+}
+.feishu-task-workspace [data-slot="table-head"] {
+  height: 34px;
+}
+.feishu-task-workspace [data-slot="table-cell"] {
+  padding-block: 10px;
+  line-height: 1.65;
+}
+.feishu-task-workspace [data-slot="table-head"]:nth-child(3) {
+  width: 140px;
+}
+@media (max-width: 700px) {
+  .feishu-task-filter-panel > [data-slot="field-group"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .feishu-task-query .feishu-list-toolbar {
+    flex-wrap: wrap;
+  }
+  .feishu-task-query .feishu-list-toolbar > [data-slot="input"] {
+    flex-basis: 100%;
+  }
+  .feishu-custom-date-range {
+    grid-template-columns: 1fr;
+  }
+}
+
+.feishu-completion-receipt {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 4px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 12px;
+}
+.feishu-completion-receipt > span {
+  grid-column: 1;
+  color: var(--muted-foreground);
+  overflow-wrap: anywhere;
+}
+.feishu-completion-receipt > div {
+  grid-column: 1;
+}
+.feishu-completion-receipt > div[role="alert"] {
+  color: var(--destructive);
+}
+.feishu-completion-receipt p {
+  margin: 0;
+}
+.feishu-completion-receipt > button {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
