@@ -1,0 +1,139 @@
+.quick-message-page .feishu-connection-settings .vitalk-transcription-card {
+  padding: 0;
+}
+.feishu-connection-settings .vitalk-transcription-row {
+  border: 0;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+  box-shadow: none;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 18px 20px;
+  gap: 24px;
+}
+.feishu-connection-settings .vitalk-transcription-row-copy {
+  gap: 4px;
+}
+.feishu-connection-settings .vitalk-transcription-row-copy [data-slot="badge"] {
+  margin-top: 4px;
+}
+.feishu-connection-settings .feishu-connection-model {
+  width: 184px;
+  height: 36px;
+}
+.feishu-connection-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--border);
+  color: var(--muted-foreground);
+  background: var(--muted);
+}
+.feishu-connection-notice svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.feishu-connection-notice p,
+.feishu-authorization p,
+.feishu-comparison-content p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.feishu-authorization {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 20px;
+  padding: 20px;
+  border-top: 1px solid var(--border);
+  background: var(--muted);
+}
+.feishu-authorization img {
+  border-radius: var(--radius-md);
+}
+.feishu-authorization > div {
+  flex: 1;
+  min-width: 220px;
+}
+.feishu-authorization h3 {
+  margin: 0 0 6px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.feishu-authorization p,
+.feishu-comparison-content {
+  color: var(--muted-foreground);
+}
+.feishu-connection-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 14px;
+  font-size: 13px;
+}
+.feishu-connection-actions a {
+  color: var(--foreground);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.feishu-connection-settings .feishu-strategy-comparison {
+  margin: 16px 0 0;
+}
+.feishu-connection-settings .feishu-strategy-comparison summary {
+  padding: 4px 0;
+  color: var(--muted-foreground);
+  font-size: 13px;
+  cursor: pointer;
+}
+.feishu-comparison-content,
+.feishu-comparison-content [aria-label="解析策略对比报告"] {
+  display: grid;
+  justify-items: start;
+  gap: 12px;
+  margin-top: 16px;
+}
+.feishu-connection-error {
+  margin: 12px 0 0;
+  color: var(--destructive);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.quick-message-page > header .quick-message-capability {
+  margin-top: 8px;
+  font-size: 12px;
+}
+@media (max-width: 600px) {
+  .feishu-connection-settings .vitalk-transcription-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+    padding: 16px;
+  }
+  .feishu-connection-settings .vitalk-transcription-row-control {
+    justify-content: flex-start;
+  }
+  .feishu-connection-notice {
+    padding: 14px 16px;
+  }
+  .feishu-authorization {
+    padding: 16px;
+  }
+}
+
+.feishu-connection-settings .vitalk-transcription-row:first-child {
+  border-top: 0;
+}
+
+.quick-message-page
+  .feishu-connection-settings
+  .vitalk-transcription-row-copy
+  h3 {
+  font-size: var(--vitalk-text-body);
+}
+.quick-message-page
+  .feishu-connection-settings
+  .vitalk-transcription-row-copy
+  p {
+  font-size: 13px;
+}

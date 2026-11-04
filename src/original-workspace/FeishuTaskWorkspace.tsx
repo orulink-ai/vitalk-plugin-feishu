@@ -1,0 +1,637 @@
+import { useEffect, useId, useRef, useState } from "react";
+import {
+  RefreshCw,
+  ExternalLink,
+  ChevronDown,
+  SlidersHorizontal,
+  X,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Table,
+  TableHeader,
+  TableHead,
+  TableRow,
+  TableBody,
+  TableCell,
+} from "@/components/ui/table";
+import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { openFeishuUrl } from "../client";
+import { experimentsRequest, type AiReply } from "../experiments/client";
+import type { FeishuRecipient } from "./FeishuMessagePanel";
+import { WorkspaceSelect, WorkspaceHistory } from "./workspace-controls";
+import { Field, FieldLabel, FieldGroup } from "@/components/ui/field";
+import {
+  selectTasks,
+  isTaskOverdue,
+  taskAssigneeIds,
+  type DeadlineFilter,
+  type TaskSort,
+  type StartFilter,
+} from "./task-filters";
+import {
+  completeTask,
+  useTaskCompletion,
+  dismissTaskCompletion,
+} from "./task-completion";
+import { FeishuTaskAssignees } from "./FeishuTaskAssignees";
+import { feishuDetailUrl } from "./workspace-receipts";
+export type FeishuTaskItem = {
+  id: string;
+  title: string;
+  description: string;
+  ownerId: string;
+  ownerIds?: string[];
+  creatorId?: string;
+  startTimestamp?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  dueTimestamp: string;
+  dueIsAllDay?: boolean;
+  completed: boolean;
+  url: string;
+};
+type TaskList = {
+  items: FeishuTaskItem[];
+  hasMore: boolean;
+  nextPageToken: string;
+  accountId: string;
+};
+const deadlineOptions: { value: DeadlineFilter; label: string }[] = [
+  { value: "all", label: "全部截止时间" },
+  { value: "overdue", label: "已逾期" },
+  { value: "today", label: "今天到期" },
+  { value: "week", label: "本周到期" },
+  { value: "next7", label: "未来7天" },
+  { value: "undated", label: "未设置日期" },
+  { value: "custom", label: "自定义日期范围" },
+];
+export function FeishuTaskWorkspace({
+  recipients,
+  replies,
+}: {
+  recipients: FeishuRecipient[];
+  replies: AiReply[];
+}) {
+  const [status, setStatus] = useState("pending"),
+    [query, setQuery] = useState("");
+  const completed = status === "all" ? undefined : status === "completed";
+  const [creator, setCreator] = useState("all"),
+    [startFilter, setStartFilter] = useState<StartFilter>("all");
+  const [dueFrom, setDueFrom] = useState(""),
+    [dueTo, setDueTo] = useState("");
+  const [result, setResult] = useState<TaskList>();
+  const [deadline, setDeadline] = useState<DeadlineFilter>("all");
+  const [owner, setOwner] = useState("all");
+  const [sort, setSort] = useState<TaskSort>("original");
+  const [filtersOpen, setFiltersOpen] = useState(true);
+  const filterId = useId();
+  const [loading, setLoading] = useState(false),
+    [error, setError] = useState("");
+  const [refresh, setRefresh] = useState(0);
+  const completion = useTaskCompletion(result?.accountId);
+  const pending = completion?.pending ? completion.taskId : "";
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
+  const epoch = useRef(0),
+    alive = useRef(true);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+      epoch.current++;
+    };
+  }, []);
+  useEffect(() => {
+    const version = ++epoch.current;
+    setLoading(true);
+    setError("");
+    setResult(undefined);
+    void experimentsRequest<TaskList>({ action: "feishuTaskList", completed })
+      .then((v) => {
+        if (!alive.current || version !== epoch.current) return;
+        if (!Array.isArray(v.items) || !v.accountId)
+          throw Error("任务列表返回格式无效，请刷新。");
+        setResult(v);
+      })
+      .catch((e) => {
+        if (alive.current && version === epoch.current)
+          setError(e instanceof Error ? e.message : String(e));
+      })
+      .finally(() => {
+        if (alive.current && version === epoch.current) setLoading(false);
+      });
+    return () => {
+      epoch.current++;
+    };
+  }, [completed, refresh]);
+  async function more() {
+    if (!result?.hasMore || loading) return;
+    const version = ++epoch.current;
+    setLoading(true);
+    try {
+      const v = await experimentsRequest<TaskList>({
+        action: "feishuTaskList",
+        completed,
+        pageToken: result.nextPageToken,
+      });
+      if (!alive.current || version !== epoch.current) return;
+      if (v.accountId !== result.accountId)
+        throw Error("飞书账号已变化，请刷新任务列表。");
+      if (!Array.isArray(v.items)) throw Error("任务列表返回格式无效。");
+      setResult({
+        ...v,
+        items: [
+          ...new Map(
+            [...result.items, ...v.items].map((t) => [t.id, t]),
+          ).values(),
+        ],
+      });
+    } catch (e) {
+      if (alive.current && version === epoch.current)
+        setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      if (alive.current && version === epoch.current) setLoading(false);
+    }
+  }
+  async function finish(task: FeishuTaskItem) {
+    if (completion?.pending || task.completed || !result?.accountId) return;
+    const version = epoch.current;
+    const account = result.accountId;
+    setError("");
+    const receipt = await completeTask(account, task.id, task.title);
+    // A stale operation must not refresh or overwrite a newly selected list/account.
+    if (
+      alive.current &&
+      epoch.current === version &&
+      receipt.status === "completed"
+    ) {
+      setRefresh((n) => n + 1);
+    }
+  }
+  const ownerName = (id: string) =>
+    recipients.find((p) => p.id === id)?.name ??
+    (id === result?.accountId ? "我" : "联系人名称未同步");
+  const ownerIds = [...new Set((result?.items ?? []).flatMap(taskAssigneeIds))];
+  if (
+    owner !== "all" &&
+    owner !== "__unassigned__" &&
+    !ownerIds.includes(owner)
+  )
+    ownerIds.push(owner);
+  const ownerOptions = [
+    { value: "all", label: "全部负责人" },
+    { value: "__unassigned__", label: "未分配负责人" },
+    ...ownerIds.map((id, i) => ({
+      value: id,
+      label:
+        ownerName(id) === "联系人名称未同步"
+          ? `联系人名称未同步 ${i + 1}`
+          : ownerName(id),
+    })),
+  ];
+  const creatorIds = [
+    ...new Set(
+      (result?.items ?? [])
+        .map((t) => t.creatorId)
+        .filter((id): id is string => !!id),
+    ),
+  ];
+  if (creator !== "all" && !creatorIds.includes(creator))
+    creatorIds.push(creator);
+  const creatorOptions = [
+    { value: "all", label: "全部创建人" },
+    ...creatorIds.map((id, i) => ({
+      value: id,
+      label:
+        ownerName(id) === "联系人名称未同步"
+          ? `联系人名称未同步 ${i + 1}`
+          : ownerName(id),
+    })),
+  ];
+  const rows = selectTasks(
+    result?.items ?? [],
+    {
+      query,
+      deadline,
+      owner,
+      sort,
+      creator,
+      start: startFilter,
+      dueFrom,
+      dueTo,
+    },
+    ownerName,
+  );
+  const filterCount =
+    Number(status !== "all") +
+    Number(deadline !== "all") +
+    Number(owner !== "all") +
+    Number(creator !== "all") +
+    Number(startFilter !== "all");
+  const isFiltered = !!query.trim() || filterCount > 0;
+  const canReset = isFiltered || sort !== "original";
+  function resetFilters() {
+    setQuery("");
+    setDeadline("all");
+    setOwner("all");
+    setSort("original");
+    setStatus("all");
+    setCreator("all");
+    setStartFilter("all");
+    setDueFrom("");
+    setDueTo("");
+  }
+  return (
+    <div className="feishu-workspace-detail feishu-task-workspace">
+      <div className="feishu-detail-header">
+        <div>
+          <h2>
+            我负责的任务{" "}
+            {result && (
+              <span className="feishu-task-count">
+                已加载 {result.items.length} 项
+              </span>
+            )}
+          </h2>
+          <p>当前账号负责的任务 · 与飞书同步</p>
+        </div>
+      </div>
+      <div className="feishu-task-query">
+        <div className="feishu-list-toolbar">
+          <Input
+            aria-label="搜索当前已加载任务"
+            placeholder="搜索标题、说明、负责人或创建人"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            aria-expanded={filtersOpen}
+            aria-controls={filterId}
+            onClick={() => setFiltersOpen((v) => !v)}
+          >
+            <SlidersHorizontal data-icon="inline-start" />
+            筛选
+            {filterCount > 0 && (
+              <span className="feishu-filter-number">{filterCount}</span>
+            )}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={loading}
+            onClick={() => setRefresh((n) => n + 1)}
+          >
+            <RefreshCw data-icon="inline-start" />
+            刷新
+          </Button>
+        </div>
+        {filtersOpen && (
+          <div className="feishu-task-filter-panel" id={filterId}>
+            <FieldGroup>
+              <WorkspaceSelect
+                label="完成状态"
+                ariaLabel="完成状态筛选"
+                value={status}
+                onChange={setStatus}
+                items={[
+                  { value: "all", label: "全部状态" },
+                  { value: "pending", label: "未完成" },
+                  { value: "completed", label: "已完成" },
+                ]}
+              />
+
+              <WorkspaceSelect
+                label="负责人"
+                ariaLabel="负责人筛选"
+                value={owner}
+                onChange={setOwner}
+                items={ownerOptions}
+              />
+
+              <WorkspaceSelect
+                label="创建人"
+                ariaLabel="创建人筛选"
+                value={creator}
+                onChange={setCreator}
+                items={creatorOptions}
+              />
+              <WorkspaceSelect
+                label="开始时间"
+                ariaLabel="开始时间筛选"
+                value={startFilter}
+                onChange={(v) => setStartFilter(v as StartFilter)}
+                items={[
+                  { value: "all", label: "全部开始时间" },
+                  { value: "started", label: "已到开始时间" },
+                  { value: "future", label: "尚未开始" },
+                  { value: "today", label: "今天开始" },
+                  { value: "undated", label: "未设置开始时间" },
+                ]}
+              />
+              <WorkspaceSelect
+                label="截止时间"
+                ariaLabel="截止时间筛选"
+                value={deadline}
+                onChange={(v) => setDeadline(v as DeadlineFilter)}
+                items={deadlineOptions}
+              />
+              <WorkspaceSelect
+                label="排序"
+                ariaLabel="任务排序"
+                value={sort}
+                onChange={(v) => setSort(v as TaskSort)}
+                items={[
+                  { value: "original", label: "飞书原始顺序" },
+                  { value: "dueAsc", label: "截止时间由近到远" },
+                  { value: "dueDesc", label: "截止时间由远到近" },
+                  { value: "title", label: "任务标题" },
+                  { value: "createdDesc", label: "最近创建优先" },
+                  { value: "updatedDesc", label: "最近更新优先" },
+                ]}
+              />
+            </FieldGroup>
+            {deadline === "custom" && (
+              <div className="feishu-custom-date-range">
+                <Field>
+                  <FieldLabel htmlFor={`${filterId}-from`}>
+                    截止日期起
+                  </FieldLabel>
+                  <Input
+                    id={`${filterId}-from`}
+                    type="date"
+                    value={dueFrom}
+                    onChange={(e) => setDueFrom(e.target.value)}
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor={`${filterId}-to`}>
+                    截止日期止（含当日）
+                  </FieldLabel>
+                  <Input
+                    id={`${filterId}-to`}
+                    type="date"
+                    value={dueTo}
+                    onChange={(e) => setDueTo(e.target.value)}
+                  />
+                </Field>
+                {dueFrom && dueTo && dueFrom > dueTo ? (
+                  <p role="alert">起始日期不能晚于结束日期。</p>
+                ) : !dueFrom && !dueTo ? (
+                  <p>请选择至少一个截止日期。</p>
+                ) : null}
+              </div>
+            )}
+          </div>
+        )}
+        {canReset && (
+          <div className="feishu-active-filters">
+            {status !== "all" && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setStatus("all")}
+              >
+                {status === "pending" ? "未完成" : "已完成"}
+                <X data-icon="inline-end" />
+              </Button>
+            )}
+            {creator !== "all" && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setCreator("all")}
+              >
+                创建人：{ownerName(creator)}
+                <X data-icon="inline-end" />
+              </Button>
+            )}
+            {startFilter !== "all" && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setStartFilter("all")}
+              >
+                开始时间：
+                {
+                  {
+                    started: "已到开始时间",
+                    future: "尚未开始",
+                    today: "今天开始",
+                    undated: "未设置",
+                  }[startFilter]
+                }
+                <X data-icon="inline-end" />
+              </Button>
+            )}
+
+            {deadline !== "all" && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setDeadline("all")}
+              >
+                {
+                  deadlineOptions.find((option) => option.value === deadline)
+                    ?.label
+                }
+                <X data-icon="inline-end" />
+              </Button>
+            )}
+            {owner !== "all" && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setOwner("all")}
+              >
+                {owner === "__unassigned__" ? "未分配负责人" : ownerName(owner)}
+                <X data-icon="inline-end" />
+              </Button>
+            )}
+            <Button variant="ghost" size="sm" onClick={resetFilters}>
+              清除筛选
+            </Button>
+          </div>
+        )}
+      </div>
+      {result && (
+        <p className="feishu-query-results" role="status">
+          显示 {rows.length} 项 · 已加载 {result.items.length} 项
+          {result.hasMore ? "，可继续加载更多" : ""}
+        </p>
+      )}
+      {loading && <p role="status">正在读取飞书任务…</p>}
+      {error && <p role="alert">{error}</p>}
+      {completion && (
+        <div className="feishu-completion-receipt">
+          <span>{completion.title}</span>
+          <div
+            role={
+              completion.pending || completion.status === "completed"
+                ? "status"
+                : "alert"
+            }
+          >
+            <p>{completion.message}</p>
+          </div>
+          {!completion.pending && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="关闭完成回执"
+              onClick={() => dismissTaskCompletion(completion.accountId)}
+            >
+              <X />
+            </Button>
+          )}
+        </div>
+      )}
+      {result && (
+        <>
+          <Table>
+            <caption className="sr-only">飞书任务列表</caption>
+            <TableHeader>
+              <TableRow>
+                <TableHead>状态</TableHead>
+                <TableHead>任务标题</TableHead>
+                <TableHead>负责人</TableHead>
+                <TableHead>截止时间</TableHead>
+                <TableHead>操作</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map((t) => {
+                const url = feishuDetailUrl(t.url),
+                  due = Number.isFinite(Number(t.dueTimestamp))
+                    ? Number(t.dueTimestamp)
+                    : 0;
+                return (
+                  <TableRow key={t.id}>
+                    <TableCell>
+                      <Checkbox
+                        aria-label={`完成任务：${t.title}`}
+                        checked={t.completed}
+                        disabled={!!pending || t.completed}
+                        onCheckedChange={(value) => {
+                          if (value) void finish(t);
+                        }}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      {t.title.length > 56 ? (
+                        <Button
+                          variant="ghost"
+                          className="feishu-task-title-toggle"
+                          aria-expanded={expanded.has(t.id)}
+                          aria-label={`${expanded.has(t.id) ? "收起" : "展开"}任务标题：${t.title}`}
+                          onClick={() =>
+                            setExpanded((current) => {
+                              const next = new Set(current);
+                              if (next.has(t.id)) next.delete(t.id);
+                              else next.add(t.id);
+                              return next;
+                            })
+                          }
+                        >
+                          <strong
+                            className={`${t.completed ? "feishu-completed" : ""} ${expanded.has(t.id) ? "" : "feishu-task-title-clamped"}`}
+                          >
+                            {t.title}
+                          </strong>
+                          <ChevronDown aria-hidden="true" />
+                        </Button>
+                      ) : (
+                        <strong
+                          className={t.completed ? "feishu-completed" : ""}
+                        >
+                          {t.title || "未命名任务"}
+                        </strong>
+                      )}
+                      {t.description && (
+                        <details>
+                          <summary>任务说明</summary>
+                          <p>{t.description}</p>
+                        </details>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <FeishuTaskAssignees
+                        ids={taskAssigneeIds(t)}
+                        name={ownerName}
+                      />
+                    </TableCell>
+                    <TableCell
+                      className={
+                        isTaskOverdue(t) ? "feishu-task-overdue" : undefined
+                      }
+                    >
+                      {isTaskOverdue(t) && (
+                        <span className="feishu-deadline-label">已逾期</span>
+                      )}
+                      {due > 0
+                        ? new Date(due).toLocaleString("zh-CN", {
+                            timeZone: "Asia/Shanghai",
+                            year:
+                              new Date(due).getFullYear() !==
+                              new Date().getFullYear()
+                                ? "numeric"
+                                : undefined,
+                            month: "numeric",
+                            day: "numeric",
+                            hour: t.dueIsAllDay ? undefined : "2-digit",
+                            minute: t.dueIsAllDay ? undefined : "2-digit",
+                          })
+                        : "未设置"}
+                    </TableCell>
+                    <TableCell>
+                      {url && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() =>
+                            void openFeishuUrl(url)
+                              .catch(() => setError("无法打开飞书任务。"))
+                          }
+                        >
+                          <ExternalLink data-icon="inline-start" />
+                          详情
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+          {!rows.length && !loading && (
+            <Empty>
+              <EmptyHeader>
+                <EmptyTitle>
+                  {isFiltered && result.items.length > 0
+                    ? "没有匹配的已加载任务"
+                    : "当前范围暂无任务"}
+                </EmptyTitle>
+              </EmptyHeader>
+            </Empty>
+          )}
+          {result.hasMore && (
+            <Button
+              variant="outline"
+              disabled={loading}
+              onClick={() => void more()}
+            >
+              加载更多
+            </Button>
+          )}
+        </>
+      )}
+      <p className="feishu-workspace-boundary">
+        列表显示当前账号负责的任务，搜索仅覆盖已加载内容。新建任务请使用右上角语音指令。
+      </p>
+      <WorkspaceHistory replies={replies} kind="feishuTask" />
+    </div>
+  );
+}

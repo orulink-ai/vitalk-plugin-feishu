@@ -1,1 +1,1 @@
-{"id":"vitalk-plugin-feishu","name":"飞书","version":"0.1.0","sdkVersion":1,"description":"通过 ViTalk 原生飞书网关连接账号，准备并确认消息，查看与完成任务、查看日程。语音快捷键按插件独立配置。","permissions":["feishu.messages","feishu.tasks","feishu.calendar"],"page":{"title":"飞书"}}
+{"id":"vitalk-plugin-feishu","name":"飞书","version":"0.1.1","sdkVersion":1,"description":"原六页签飞书工作台：独立语音快捷键发送消息、创建任务与预约日程，支持对象热词和授权管理。","permissions":["feishu.messages","feishu.tasks","feishu.calendar"],"page":{"title":"飞书"}}
