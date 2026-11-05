@@ -11,9 +11,17 @@ export function getClient(){
 export async function feishu<T>(action:string,params:Record<string,unknown>={}):Promise<T>{
   // Native install can take 180s; device authorization can wait 600s,
   // followed by a 30s status read. Keep the SDK waiter alive for the receipt.
-  const timeoutMs = action === 'feishuCliInstall' ? 210_000
+  const timeoutMs = action === 'feishuPluginCliInstall' ? 210_000
     : action === 'feishuAuthComplete' ? 660_000 : 60_000;
-  return getClient().request('feishu.request',{action,params:params as Record<string,import('@vitalk/plugin-sdk').JsonValue>},{timeoutMs}) as Promise<T>;
+  try {
+    return await getClient().request('feishu.request',{action,params:params as Record<string,import('@vitalk/plugin-sdk').JsonValue>},{timeoutMs}) as T;
+  } catch (error) {
+    if (['feishuPluginCliStatus', 'feishuPluginCliInstall'].includes(action)
+      && error instanceof Error && 'code' in error && error.code === 'unsupported_method') {
+      throw Error('请更新 ViTalk 桌面端后再安装飞书插件运行环境。');
+    }
+    throw error;
+  }
 }
 export async function openFeishuUrl(url:string):Promise<void>{
   const request = getClient().request as (method:string,params:{url:string})=>Promise<unknown>;

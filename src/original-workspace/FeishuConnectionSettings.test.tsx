@@ -15,7 +15,7 @@ const experimentsRequest = vi.hoisted(() => vi.fn<typeof import("../experiments/
 
 const openExternalUrl = vi.hoisted(() => vi.fn<(url: string) => Promise<void>>(async () => undefined));
 vi.mock("../client", () => ({ openFeishuUrl: openExternalUrl }));
-vi.mock("../experiments/client", () => ({ experimentsRequest: (request: import("../experiments/client").ExperimentsRequest) => request.action === "feishuCliStatus" ? Promise.resolve({ installed: true, version: "1.0.98" }) : experimentsRequest(request) }));
+vi.mock("../experiments/client", () => ({ experimentsRequest: (request: import("../experiments/client").ExperimentsRequest) => request.action === "feishuPluginCliStatus" ? Promise.resolve({ installed: true, version: "1.0.98" }) : experimentsRequest(request) }));
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
