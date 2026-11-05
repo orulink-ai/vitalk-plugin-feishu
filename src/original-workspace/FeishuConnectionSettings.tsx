@@ -260,9 +260,25 @@ export function FeishuConnectionSettings({
                   disabled={busy || !safeUrl}
                   onClick={() =>
                     void perform("complete", async () => {
-                      const result = await experimentsRequest<FeishuAuthStatus>(
-                        { action: "feishuAuthComplete", flowId: flow.flowId },
-                      );
+                      let result: FeishuAuthStatus;
+                      try {
+                        result = await experimentsRequest<FeishuAuthStatus>(
+                          { action: "feishuAuthComplete", flowId: flow.flowId },
+                        );
+                      } catch (failure) {
+                        // A timed-out device code can no longer be confirmed.
+                        // Reconcile with native state instead of leaving its QR
+                        // visible indefinitely or treating an old login as success.
+                        const latest = await experimentsRequest<FeishuAuthStatus>({
+                          action: "feishuAuthStatus",
+                        }).catch(() => undefined);
+                        if (latest) publishStatus(latest);
+                        if (latest && !latest.pendingAuthorization && failure instanceof Error
+                          && (failure.message.includes("超时") || ("code" in failure && failure.code === "timeout"))) {
+                          throw new Error("本次授权请求未能确认，待确认流程已结束。已重新读取当前连接状态；如需继续，请重新发起授权。");
+                        }
+                        throw failure;
+                      }
                       publishStatus(result);
                       if (result.connected && !result.pendingAuthorization) {
                         setFlow(undefined);

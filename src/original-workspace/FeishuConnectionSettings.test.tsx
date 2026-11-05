@@ -571,3 +571,45 @@ it("preserves a device failure when an earlier browser launch finishes later and
   expect(screen.getByRole("alert").textContent).toContain("授权流程已过期");
   expect(screen.getByRole("button",{name:"连接飞书"})).toHaveProperty("disabled",false);
 });
+
+it("rereads native status after an expired receipt and removes the obsolete QR without starting another login", async () => {
+  let checks = 0;
+  experimentsRequest.mockImplementation(async request => {
+    if (request.action === "feishuAuthStatus") {
+      checks++;
+      return {connected:true,allPermissionsGranted:true,message:"已有连接可用"} as never;
+    }
+    if (request.action === "feishuAuthStart") return {flowId:"expired",verificationUrl:"https://accounts.feishu.cn/verify"} as never;
+    if (request.action === "feishuAuthComplete") throw new Error("飞书授权请求超时");
+    return {} as never;
+  });
+  render(<FeishuConnectionSettings model="llm" onModelChange={vi.fn()} />);
+  await screen.findByText("已有连接可用");
+  fireEvent.click(screen.getByRole("button", {name:"重新授权"}));
+  fireEvent.click(await screen.findByRole("button", {name:"我已完成授权"}));
+  await waitFor(()=>expect(screen.queryByLabelText("飞书授权")).toBeNull());
+  expect(checks).toBe(2);
+  expect(screen.getByRole("alert").textContent).toContain("本次授权请求未能确认");
+  expect(screen.getByRole("button",{name:"重新授权"})).toHaveProperty("disabled",false);
+  expect(experimentsRequest.mock.calls.filter(([r])=>r.action==='feishuAuthStart')).toHaveLength(1);
+  expect(experimentsRequest).not.toHaveBeenCalledWith({action:"feishuSync"});
+});
+
+it("retains a still-valid device flow after a failed receipt so the official page can be retried", async () => {
+  let checks=0;
+  const flow={flowId:"still-pending",verificationUrl:"https://accounts.feishu.cn/verify"};
+  experimentsRequest.mockImplementation(async request=>{
+    if(request.action==='feishuAuthStatus') return {connected:false,message:"未连接",...(++checks>1?{pendingAuthorization:flow}:{})} as never;
+    if(request.action==='feishuAuthStart')return flow as never;
+    if(request.action==='feishuAuthComplete')throw new Error("网络暂时失败");
+    return {} as never;
+  });
+  render(<FeishuConnectionSettings model="llm" onModelChange={vi.fn()}/>);
+  await screen.findByText("未连接",{selector:"p"});
+  fireEvent.click(screen.getByRole("button",{name:"连接飞书"}));
+  fireEvent.click(await screen.findByRole("button",{name:"我已完成授权"}));
+  await screen.findByText("网络暂时失败");
+  expect(checks).toBe(2);
+  expect(screen.getByRole("link",{name:"在浏览器中授权飞书"})).toBeTruthy();
+  expect(screen.getByRole("button",{name:"我已完成授权"})).toHaveProperty("disabled",false);
+});
