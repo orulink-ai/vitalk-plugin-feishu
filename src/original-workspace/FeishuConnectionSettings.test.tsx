@@ -505,3 +505,69 @@ it("ignores a stale mount check after the user starts a newer authorization", as
   await waitFor(() => expect(screen.getByRole("link", { name: "在浏览器中授权飞书" }).getAttribute("href"))
     .toBe("https://accounts.feishu.cn/oauth/new"));
 });
+
+it("clears a restored QR when the parent supplies a completed status", async () => {
+  experimentsRequest.mockImplementation(() => new Promise(() => {}));
+  const initialAuth = { connected: true, message: "已有连接", pendingAuthorization: { flowId: "restored", verificationUrl: "https://accounts.feishu.cn/verify" } };
+  const view = render(<FeishuConnectionSettings model="llm" onModelChange={vi.fn()} initialAuth={initialAuth} />);
+  expect(screen.getByLabelText("飞书授权")).toBeTruthy();
+  view.rerender(<FeishuConnectionSettings model="llm" onModelChange={vi.fn()} initialAuth={{ connected: true, message: "授权已完成" }} />);
+  expect(screen.queryByLabelText("飞书授权")).toBeNull();
+});
+
+it("allows opening the official page while a device receipt is pending and clears the QR on success", async () => {
+  let finish!: (value: unknown) => void;
+  experimentsRequest.mockImplementation(async (request) => {
+    if (request.action === "feishuAuthStatus") return { connected: true, message: "原账号已连接" } as never;
+    if (request.action === "feishuAuthStart") return { flowId: "renew", verificationUrl: "https://accounts.feishu.cn/verify" } as never;
+    if (request.action === "feishuAuthComplete") return await new Promise<unknown>(resolve => { finish = resolve; }) as never;
+    return { recipients: [], lastSync: 12, partial: false } as never;
+  });
+  render(<FeishuConnectionSettings model="llm" onModelChange={vi.fn()} />);
+  fireEvent.click(await screen.findByRole("button", { name: "重新授权" }));
+  fireEvent.click(await screen.findByRole("button", { name: "我已完成授权" }));
+  await screen.findByRole("button", { name: "正在等待授权回执…" });
+  expect(screen.getByText("等待本次授权")).toBeTruthy();
+  fireEvent.click(screen.getByRole("link", { name: "在浏览器中授权飞书" }));
+  await waitFor(() => expect(openExternalUrl).toHaveBeenCalledWith("https://accounts.feishu.cn/verify"));
+  expect(experimentsRequest.mock.calls.filter(([r]) => r.action === "feishuAuthComplete")).toHaveLength(1);
+  await act(async () => finish({ connected: true, message: "新授权已完成" }));
+  await waitFor(() => expect(screen.queryByLabelText("飞书授权")).toBeNull());
+  await waitFor(() => expect(screen.getByRole("button", {name:"重新授权"})).toHaveProperty("disabled", false));
+});
+
+it("keeps the next authorization step even when an existing account is connected", async () => {
+  experimentsRequest.mockImplementation(async (request) => {
+    if (request.action === "feishuAuthStatus") return { connected: false, message: "尚未连接" } as never;
+    if (request.action === "feishuAuthStart") return { flowId: "first", verificationUrl: "https://accounts.feishu.cn/first" } as never;
+    if (request.action === "feishuAuthComplete") return { connected: true, message: "需继续授权", pendingAuthorization: { flowId: "second", verificationUrl: "https://accounts.feishu.cn/second" } } as never;
+    return { recipients: [], lastSync: 12, partial: false } as never;
+  });
+  render(<FeishuConnectionSettings model="llm" onModelChange={vi.fn()} />);
+  await screen.findByText("尚未连接");
+  fireEvent.click(screen.getByRole("button", {name:"连接飞书"}));
+  fireEvent.click(await screen.findByRole("button", {name:"我已完成授权"}));
+  await waitFor(() => expect(screen.getByRole("link", {name:"在浏览器中授权飞书"}).getAttribute("href")).toBe("https://accounts.feishu.cn/second"));
+  expect(experimentsRequest).not.toHaveBeenCalledWith({action:"feishuSync"});
+});
+
+it("preserves a device failure when an earlier browser launch finishes later and allows retry", async () => {
+  let fail!: (reason: Error) => void;
+  let browserOpened!: () => void;
+  openExternalUrl.mockImplementationOnce(() => new Promise<void>(resolve => { browserOpened = resolve; }));
+  experimentsRequest.mockImplementation(async request => {
+    if (request.action === "feishuAuthStatus") return {connected:false,message:"尚未连接"} as never;
+    if (request.action === "feishuAuthStart") return {flowId:"retry",verificationUrl:"https://accounts.feishu.cn/verify"} as never;
+    if (request.action === "feishuAuthComplete") return await new Promise<unknown>((_,reject) => {fail=reject;}) as never;
+    return {} as never;
+  });
+  render(<FeishuConnectionSettings model="llm" onModelChange={vi.fn()} />);
+  await screen.findByText("尚未连接");
+  fireEvent.click(screen.getByRole("button",{name:"连接飞书"}));
+  fireEvent.click(await screen.findByRole("button",{name:"我已完成授权"}));
+  fireEvent.click(screen.getByRole("link",{name:"在浏览器中授权飞书"}));
+  await act(async()=>fail(new Error("授权流程已过期，请重新连接")));
+  await act(async()=>browserOpened());
+  expect(screen.getByRole("alert").textContent).toContain("授权流程已过期");
+  expect(screen.getByRole("button",{name:"连接飞书"})).toHaveProperty("disabled",false);
+});
