@@ -52,6 +52,8 @@ export interface FeishuMessagePanelProps {
     attachments?: FeishuMessageAttachment[];
   }) => void;
   onSend: () => Promise<void> | void;
+  /** Inline workspaces can expose an explicit confirmation label. */
+  sendLabel?: string;
   onClose?: () => void;
   onRegenerate?: () => void;
   onRecipientSelected?: (recipient: FeishuRecipient) => void | Promise<void>;
@@ -122,6 +124,7 @@ function MessagePanel({
   recipients,
   onChange,
   onSend,
+  sendLabel,
   onClose,
   onRegenerate,
   onSearch,
@@ -507,7 +510,7 @@ function MessagePanel({
                 ? "已发送"
                 : draft.status === "unknown"
                   ? "请先核实发送结果"
-                  : "发送消息"
+                  : (sendLabel ?? "发送消息")
           }
           title="Enter 发送 · Shift + Enter 换行"
         >
@@ -523,7 +526,7 @@ function MessagePanel({
                 ? "已发送"
                 : draft.status === "unknown"
                   ? "请先核实发送结果"
-                  : "发送消息"}
+                  : (sendLabel ?? "发送消息")}
           </span>
         </Button>
       </div>

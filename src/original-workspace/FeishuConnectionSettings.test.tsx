@@ -20,6 +20,15 @@ afterEach(() => {
   cleanup();
   vi.clearAllMocks();
 });
+it("does not offer CLI download when the managed CLI is installed", async () => {
+  experimentsRequest.mockResolvedValue({
+    connected: false,
+    message: "未连接",
+  } as never);
+  render(<FeishuConnectionSettings model="llm" onModelChange={vi.fn()} />);
+  await screen.findByText("已安装飞书 CLI 1.0.98");
+  expect(screen.queryByRole("button", { name: "下载并安装" })).toBeNull();
+});
 it("starts browser authorization and waits for explicit completion before syncing", async () => {
   vi.mocked(experimentsRequest).mockImplementation(async (request) => {
     if (request.action === "feishuAuthStatus")
@@ -90,6 +99,7 @@ it("shows partial catalog, manually updates and saves the chosen parsing model",
   );
   expect(screen.getByText(/仅同步了部分/)).toBeTruthy();
   const user = userEvent.setup();
+  await user.click(screen.getByText("高级设置"));
   await user.click(screen.getByRole("combobox", { name: "对象匹配方式" }));
   await user.click(await screen.findByRole("option", { name: "JEV 决策模型" }));
   expect(onModelChange).toHaveBeenCalledWith("jev");
@@ -612,4 +622,21 @@ it("retains a still-valid device flow after a failed receipt so the official pag
   expect(checks).toBe(2);
   expect(screen.getByRole("link",{name:"在浏览器中授权飞书"})).toBeTruthy();
   expect(screen.getByRole("button",{name:"我已完成授权"})).toHaveProperty("disabled",false);
+});
+
+it("keeps advanced matching out of the default view while permission repair stays visible", async () => {
+  experimentsRequest.mockResolvedValue({
+    connected: true,
+    allPermissionsGranted: false,
+    message: "任务和日历需要补充权限",
+  } as never);
+  render(<FeishuConnectionSettings model="llm" onModelChange={vi.fn()} />);
+  await screen.findByText("任务和日历需要补充权限");
+  const advanced = screen.getByText("高级设置").closest("details")!;
+  expect(advanced.open).toBe(false);
+  expect(screen.getByRole("button", { name: "重新授权" })).toBeTruthy();
+  const user = userEvent.setup();
+  await user.click(screen.getByText("高级设置"));
+  expect(advanced.open).toBe(true);
+  expect(screen.getByRole("combobox", { name: "对象匹配方式" })).toBeTruthy();
 });

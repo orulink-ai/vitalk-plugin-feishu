@@ -7,7 +7,9 @@ import {
   type ExperimentsSnapshot,
   type FeishuAuthStatus,
 } from "../experiments/client";
-import { FeishuOverview, type FeishuTab } from "./FeishuOverview";
+import type { FeishuTab } from "./FeishuOverview";
+import { FeishuActivityPanel } from "./FeishuActivityPanel";
+import { FeishuMessagesWorkspace } from "./FeishuMessagesWorkspace";
 import { FeishuVoiceControls } from "./FeishuVoiceControls";
 import { FeishuTaskWorkspace } from "./FeishuTaskWorkspace";
 import { FeishuCalendarWorkspace } from "./FeishuCalendarWorkspace";
@@ -15,11 +17,11 @@ import { workspaceReplies, mergeWorkspaceReply } from "./workspace-receipts";
 import { FeishuConnectionSettings } from "./FeishuConnectionSettings";
 import { AgentVoiceShortcut } from "../experiments/AgentVoiceShortcut";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
 import { FEISHU_EXTERNAL_SEND_NOTICE } from "./sending-capability";
 import "./quick-message.css";
 import "./feishu-workspace.css";
 import "./workspace-data-views.css";
+import "./feishu-workspace-simplified.css";
 function retainLiveReplies(
   incoming: ExperimentsSnapshot,
   replies: Map<string, AiReply>,
@@ -32,7 +34,8 @@ function retainLiveReplies(
 export function QuickMessagePage() {
   const [snapshot, setSnapshot] = useState<ExperimentsSnapshot>();
   const [error, setError] = useState("");
-  const [tab, setTab] = useState<FeishuTab>("overview");
+  const [tab, setTab] = useState<FeishuTab>("messages");
+  const [visited, setVisited] = useState(()=>new Set<FeishuTab>(["messages"]));
   const [auth, setAuth] = useState<FeishuAuthStatus>();
   const [authPending, setAuthPending] = useState(true);
   const authVersion = useRef(0);
@@ -62,22 +65,25 @@ export function QuickMessagePage() {
   const liveReplies = useRef(new Map<string, AiReply>());
   useEffect(() => {
     let active = true;
-    const refresh = () => experimentsRequest<ExperimentsSnapshot>({ action: "read" })
-      .then((s) => {
-        if (active) {
-          setSnapshot(retainLiveReplies(s, liveReplies.current));
-        }
-      })
-      .catch((e) => {
-        if (active)
-          setError(
-            e instanceof TypeError
-              ? "无法读取语音发送设置，请在 ViTalk 桌面端打开后重试。"
-              : String(e instanceof Error ? e.message : e),
-          );
-      });
+    const refresh = () =>
+      experimentsRequest<ExperimentsSnapshot>({ action: "read" })
+        .then((s) => {
+          if (active) {
+            setSnapshot(retainLiveReplies(s, liveReplies.current));
+          }
+        })
+        .catch((e) => {
+          if (active)
+            setError(
+              e instanceof TypeError
+                ? "无法读取语音发送设置，请在 ViTalk 桌面端打开后重试。"
+                : String(e instanceof Error ? e.message : e),
+            );
+        });
     void refresh();
-    const timer = window.setInterval(() => { void refresh(); }, 3000);
+    const timer = window.setInterval(() => {
+      void refresh();
+    }, 3000);
     return () => {
       active = false;
       window.clearInterval(timer);
@@ -108,12 +114,21 @@ export function QuickMessagePage() {
         <div>
           <h1>飞书</h1>
 
-          <p>语音发送消息、创建任务，或预约日程与会议。</p>
+          <p>消息、任务和日程，在这里处理。</p>
         </div>
         <div className="feishu-header-actions">
-          {snapshot && (
+          <button type="button" className="feishu-connection-shortcut" onClick={()=>setTab("settings")}>
+            {authPending ? "检查连接…" : auth?.connected ? "飞书已连接" : "连接飞书"}
+          </button>
+          {snapshot && (tab === "tasks" || tab === "meetings") && (
             <FeishuVoiceControls
-              purpose={tab === "tasks" ? "task" : tab === "meetings" ? "calendar" : "message"}
+              purpose={
+                tab === "tasks"
+                  ? "task"
+                  : tab === "meetings"
+                    ? "calendar"
+                    : "message"
+              }
               startLabel={
                 tab === "tasks"
                   ? "语音创建任务"
@@ -125,11 +140,6 @@ export function QuickMessagePage() {
           )}
         </div>
       </header>
-      {(tab === "overview" || tab === "messages") && (
-        <p className="quick-message-capability">
-          {FEISHU_EXTERNAL_SEND_NOTICE}
-        </p>
-      )}
       {error && <p role="alert">{error}</p>}
       {!snapshot ? (
         error ? null : (
@@ -141,44 +151,37 @@ export function QuickMessagePage() {
             value={tab}
             onValueChange={(value) => {
               setTab(String(value) as FeishuTab);
+              setVisited(current=>new Set([...current,String(value) as FeishuTab]));
               pageRegion.current?.scrollTo?.({ top: 0 });
             }}
           >
-            <TabsList variant="line" aria-label="飞书功能">
-              <TabsTrigger value="overview">概览</TabsTrigger>
+            <div className="feishu-workspace-navigation">
+            <TabsList variant="line" aria-label="飞书工作">
               <TabsTrigger value="messages">消息</TabsTrigger>
               <TabsTrigger value="tasks">任务</TabsTrigger>
-              <TabsTrigger value="meetings">日程与会议</TabsTrigger>
-              <TabsTrigger value="hotwords">对象热词</TabsTrigger>
+              <TabsTrigger value="meetings">日程</TabsTrigger>
+            </TabsList>
+            <TabsList variant="line" aria-label="飞书管理">
+              <TabsTrigger value="hotwords">联系人</TabsTrigger>
+              <TabsTrigger value="overview">操作记录</TabsTrigger>
               <TabsTrigger value="settings">设置</TabsTrigger>
             </TabsList>
+            </div>
             <TabsContent value="overview">
-              <FeishuOverview
-                auth={auth}
-                authPending={authPending}
-                config={snapshot.config}
-                replies={workspaceReplies(snapshot)}
-                onNavigate={setTab}
-              />
+              <FeishuActivityPanel replies={workspaceReplies(snapshot)} />
             </TabsContent>
-            <TabsContent value="tasks">
-              <FeishuTaskWorkspace
+            <TabsContent value="tasks" keepMounted>
+              {visited.has("tasks") && <FeishuTaskWorkspace
                 recipients={snapshot.feishuCatalog?.recipients ?? []}
                 replies={workspaceReplies(snapshot)}
-              />
+              />}
             </TabsContent>
-            <TabsContent value="meetings">
-              <FeishuCalendarWorkspace replies={workspaceReplies(snapshot)} />
+            <TabsContent value="meetings" keepMounted>
+              {visited.has("meetings") && <FeishuCalendarWorkspace replies={workspaceReplies(snapshot)} />}
             </TabsContent>
             <TabsContent value="messages" keepMounted>
-              <div className="quick-message-settings-intro">
-                <h2>消息</h2>
-                <p>明确的语音指令可直接发送；独立消息快捷键仍保留草稿确认。</p>
-              </div>
-              <MessageStyleSettings
-                value={snapshot.config.feishuMessageStyle ?? ""}
-                onSave={(style) => save({ feishuMessageStyle: style })}
-              />
+              <FeishuMessagesWorkspace snapshot={snapshot} />
+              <p className="quick-message-capability">{FEISHU_EXTERNAL_SEND_NOTICE}</p>
             </TabsContent>
             <TabsContent value="hotwords" keepMounted>
               <RecipientMemoryPanel
@@ -186,18 +189,6 @@ export function QuickMessagePage() {
               />
             </TabsContent>
             <TabsContent value="settings" keepMounted>
-              <div className="quick-message-settings-intro">
-                <h2>发送设置</h2>
-                <p>管理功能开关、快捷键和飞书连接。</p>
-              </div>
-              <div className="quick-message-shortcut">
-                <AgentVoiceShortcut
-                  config={snapshot.config}
-                  enabled={!!snapshot.config.feishuTools}
-                  onToggleEnabled={() => { void save({ feishuTools: !snapshot.config.feishuTools }); }}
-                  onSaved={() => { void experimentsRequest<ExperimentsSnapshot>({ action: 'read' }).then(setSnapshot).catch(e => setError(String(e))); }}
-                />
-              </div>
               <FeishuConnectionSettings
                 initialAuth={auth}
                 onStatusChange={acceptAuth}
@@ -207,6 +198,29 @@ export function QuickMessagePage() {
                   void save({ feishuRecipientModel: model })
                 }
               />
+              <details className="feishu-settings-disclosure">
+                <summary>消息表达偏好</summary>
+                <MessageStyleSettings value={snapshot.config.feishuMessageStyle ?? ""} onSave={(style) => save({feishuMessageStyle:style})}/>
+              </details>
+              <details className="feishu-settings-disclosure">
+                <summary>语音快捷键与功能开关</summary>
+                <div className="quick-message-shortcut">
+                  <AgentVoiceShortcut
+                    config={snapshot.config}
+                    enabled={!!snapshot.config.feishuTools}
+                    onToggleEnabled={() => {
+                      void save({ feishuTools: !snapshot.config.feishuTools });
+                    }}
+                    onSaved={() => {
+                      void experimentsRequest<ExperimentsSnapshot>({
+                        action: "read",
+                      })
+                        .then(setSnapshot)
+                        .catch((e) => setError(String(e)));
+                    }}
+                  />
+                </div>
+              </details>
             </TabsContent>
           </Tabs>
         </>

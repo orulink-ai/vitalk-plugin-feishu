@@ -137,3 +137,146 @@
   p {
   font-size: 13px;
 }
+
+.feishu-cli-ready {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.feishu-connection-settings .vitalk-transcription-row {
+  padding: 16px 20px;
+  gap: 16px;
+}
+.feishu-connection-settings .feishu-connection-actions {
+  margin-top: 0;
+  gap: 8px;
+}
+.feishu-authorization .feishu-connection-actions {
+  margin-top: 12px;
+}
+.feishu-advanced-settings {
+  margin-top: 16px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+.feishu-advanced-settings > summary {
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--muted-foreground);
+  width: fit-content;
+  padding: 4px 0;
+}
+.feishu-advanced-settings > summary:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+}
+.feishu-advanced-content {
+  margin-top: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.feishu-diagnostic-status {
+  padding: 12px 20px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.quick-message-page
+  .feishu-connection-settings
+  .vitalk-settings-section-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.quick-message-page
+  .feishu-connection-settings
+  .vitalk-settings-section-header
+  h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+.quick-message-page
+  .feishu-connection-settings
+  .vitalk-settings-section-header
+  p {
+  margin: 3px 0 0;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.feishu-connection-settings .vitalk-settings-section-icon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  background: var(--muted);
+  border-radius: 8px;
+  color: var(--muted-foreground);
+}
+.quick-message-page .feishu-connection-settings .vitalk-transcription-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: none;
+}
+.quick-message-page .feishu-connection-settings .vitalk-transcription-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  border: 0;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+  box-shadow: none;
+}
+.feishu-connection-settings .vitalk-transcription-row-copy {
+  display: grid;
+  gap: 4px;
+}
+.quick-message-page
+  .feishu-connection-settings
+  .vitalk-transcription-row-copy
+  h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+.quick-message-page
+  .feishu-connection-settings
+  .vitalk-transcription-row-copy
+  p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted-foreground);
+  line-height: 1.6;
+}
+.feishu-connection-settings .vitalk-transcription-row-control {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+.feishu-connection-actions [data-slot="button"] {
+  min-height: 32px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 12px;
+  background: var(--background);
+  color: var(--foreground);
+}
+.feishu-connection-actions .feishu-authorize-button[data-primary="true"] {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border-color: var(--primary);
+}
+@media (max-width: 600px) {
+  .quick-message-page .feishu-connection-settings .vitalk-transcription-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .feishu-connection-settings .vitalk-transcription-row-control {
+    justify-content: flex-start;
+  }
+}

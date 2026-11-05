@@ -4,18 +4,8 @@ import {
   ListTodo,
   ShieldCheck,
   ArrowRight,
-  Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-  CardFooter,
-} from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import type {
   AiReply,
   ExperimentsConfig,
@@ -24,28 +14,24 @@ import type {
 import { FeishuActivityPanel } from "./FeishuActivityPanel";
 export type FeishuTab =
   "overview" | "messages" | "tasks" | "meetings" | "hotwords" | "settings";
-const capabilities = [
+const actions = [
   {
     tab: "messages",
     icon: MessageSquare,
     title: "发送消息",
-    description: "说出联系人或群聊和内容，匹配真实对象，按你的表达习惯发送。",
-    example: "给小冰发消息，告诉她项目资料整理好了。",
+    description: "联系人与群聊",
   },
   {
     tab: "tasks",
     icon: ListTodo,
-    title: "创建任务",
-    description:
-      "指定真实负责人，创建任务后发送任务分享卡片；查看自己负责的任务。",
-    example: "给小冰创建任务，内容是整理本周项目资料。",
+    title: "管理任务",
+    description: "查看、创建与完成",
   },
   {
     tab: "meetings",
     icon: CalendarDays,
-    title: "预约会议",
-    description: "识别参与人和时间，核对忙闲，创建日程并发送邀请。",
-    example: "预约小冰明天下午三点的会议，讨论项目进度。",
+    title: "查看日程",
+    description: "个人安排与会议",
   },
 ] as const;
 export function FeishuOverview({
@@ -61,85 +47,96 @@ export function FeishuOverview({
   replies: AiReply[];
   onNavigate: (tab: FeishuTab) => void;
 }) {
+  const needsPermission =
+    auth?.connected && auth.allPermissionsGranted === false;
   return (
     <div className="feishu-overview">
-      <div className="feishu-connection-summary">
-        <ShieldCheck />
+      <div
+        className="feishu-connection-summary"
+        data-attention={needsPermission || !auth?.connected || undefined}
+      >
+        <ShieldCheck aria-hidden="true" />
         <div>
           <strong>
             {auth
               ? auth.connected
-                ? auth.allPermissionsGranted === false
+                ? needsPermission
                   ? "需要补充授权"
                   : "已连接飞书"
                 : "尚未连接飞书"
               : authPending
-                ? "正在核对飞书连接"
+                ? "正在核对连接"
                 : "连接状态未确认"}
           </strong>
-          <p>{auth?.message ?? "连接与授权在原飞书设置中统一管理。"}</p>
+          <p {...(needsPermission ? { role: "alert" } : {})}>
+            {needsPermission || auth?.connected === false
+              ? auth?.message
+              : config.feishuTools
+                ? "语音指令已开启"
+                : "语音指令尚未开启，可在设置中开启。"}
+          </p>
         </div>
-        <Badge variant="secondary">
-          {config.feishuTools ? "语音功能已开启" : "语音功能已关闭"}
-        </Badge>
         <Button
-          variant="ghost"
+          variant={
+            needsPermission || auth?.connected === false ? "default" : "ghost"
+          }
           size="sm"
           onClick={() => onNavigate("settings")}
         >
-          管理连接
+          {needsPermission
+            ? "补充授权"
+            : auth?.connected
+              ? "连接设置"
+              : "连接飞书"}
         </Button>
       </div>
-      <div className="feishu-capability-grid">
-        {capabilities.map((c) => (
-          <Card key={c.tab}>
-            <CardHeader>
-              <c.icon className="feishu-capability-icon" />
-              <CardTitle role="heading" aria-level={2}>
-                {c.title}
-              </CardTitle>
-              <CardDescription>{c.description}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <blockquote>“{c.example}”</blockquote>
-            </CardContent>
-            <CardFooter>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => onNavigate(c.tab)}
-              >
-                查看
-                {c.tab === "messages"
-                  ? "消息"
-                  : c.tab === "tasks"
-                    ? "任务"
-                    : "会议"}
-                用法
-                <ArrowRight data-icon="inline-end" />
-              </Button>
-            </CardFooter>
-          </Card>
+      <div className="feishu-overview-actions" aria-label="常用功能">
+        {actions.map((action) => (
+          <button
+            key={action.tab}
+            type="button"
+            onClick={() => onNavigate(action.tab)}
+          >
+            <action.icon aria-hidden="true" />
+            <span>
+              <strong>{action.title}</strong>
+              <small>{action.description}</small>
+            </span>
+            <ArrowRight aria-hidden="true" />
+          </button>
         ))}
       </div>
+      <details className="feishu-overview-examples">
+        <summary>试试这样说</summary>
+        <ul>
+          <li>给小琼发消息，说资料已经整理好了</li>
+          <li>给小琼创建任务，内容是整理项目资料</li>
+          <li>明天下午两点和小琼聊半小时</li>
+        </ul>
+        <p>使用上方语音按钮，说明对象和要做的事。</p>
+      </details>
       <div className="feishu-overview-links">
         <Button
           variant="ghost"
           size="sm"
           onClick={() => onNavigate("hotwords")}
         >
-          <Users data-icon="inline-start" />
-          管理联系人与群聊称呼
+          联系人称呼
         </Button>
         <Button
           variant="ghost"
           size="sm"
           onClick={() => onNavigate("messages")}
         >
-          调整消息表达偏好
+          消息表达偏好
         </Button>
       </div>
-      <FeishuActivityPanel replies={replies} />
+      <details className="feishu-overview-history">
+        <summary>
+          操作记录{replies.length > 0 ? `（${replies.length}）` : ""}
+        </summary>
+        <FeishuActivityPanel replies={replies} />
+      </details>
     </div>
   );
 }
