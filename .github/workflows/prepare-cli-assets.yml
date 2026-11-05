@@ -1,0 +1,23 @@
+name: Prepare plugin CLI assets
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify and prepare pinned upstream binaries
+        run: node package-native.mjs
+      - name: Upload plugin-owned CLI assets to existing draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="v$(node -p "JSON.parse(require('fs').readFileSync('manifest.json')).version")"
+          test "$(gh release view "$TAG" --json isDraft --jq .isDraft)" = true
+          gh release upload "$TAG" dist/lark-cli-* dist/native-checksums.txt dist/LICENSE.lark-cli --clobber
