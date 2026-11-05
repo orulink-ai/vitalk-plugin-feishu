@@ -26,7 +26,7 @@ import { FEISHU_EXTERNAL_SEND_NOTICE } from "./sending-capability";
 import "./feishu-connection.css";
 
 type Operation =
-  "check" | "authorize" | "openBrowser" | "complete" | "sync" | "compare" | "installCli";
+  "check" | "authorize" | "complete" | "sync" | "compare" | "installCli";
 type CliStatus = {installed:boolean;version?:string};
 const models = [
   { value: "llm", label: "文字模型" },
@@ -67,6 +67,7 @@ export function FeishuConnectionSettings({
   const [localCatalog, setCatalog] = useState<FeishuCatalog>();
   const [flow, setFlow] = useState<FeishuAuthorizationFlow | undefined>(initialAuth?.pendingAuthorization);
   const [error, setError] = useState("");
+  const [browserError, setBrowserError] = useState("");
   const [pending, setPending] = useState<Operation | null>(null);
   const locked = useRef(false);
   const busy = pending !== null;
@@ -80,6 +81,9 @@ export function FeishuConnectionSettings({
   useEffect(() => {
     if (initialAuth) {
       setAuth(initialAuth);
+      // A passive snapshot must not replace a device flow being confirmed.
+      // When idle, keep the restored QR in sync with the native snapshot.
+      if (!locked.current) setFlow(initialAuth.pendingAuthorization);
       setChecking(false);
     }
   }, [initialAuth]);
@@ -110,6 +114,7 @@ export function FeishuConnectionSettings({
     operationVersion.current += 1;
     setPending(name);
     setError("");
+    setBrowserError("");
     try {
       await operation();
     } catch (error) {
@@ -135,6 +140,8 @@ export function FeishuConnectionSettings({
   const status =
     checking || pending === "check"
       ? "检查中"
+      : flow
+        ? "等待本次授权"
       : auth
         ? auth.connected
           ? auth.allPermissionsGranted === false
@@ -161,7 +168,9 @@ export function FeishuConnectionSettings({
         <TranscriptionSettingsRow
           label="账号连接"
           description={
-            auth?.message ||
+            (flow && auth?.connected
+              ? "已有飞书连接；本次重新授权尚未完成，请完成下方官方页面确认。"
+              : auth?.message) ||
             (checking || pending === "check"
               ? "正在检查飞书连接…"
               : "连接状态检查失败，请重试。")
@@ -232,12 +241,13 @@ export function FeishuConnectionSettings({
                     href={safeUrl}
                     target="_blank"
                     rel="noreferrer"
-                    aria-disabled={busy}
                     onClick={(event) => {
                       event.preventDefault();
-                      void perform("openBrowser", () =>
-                        openFeishuUrl(safeUrl),
-                      );
+                      // Opening the verification page must remain possible while
+                      // the native device-login command waits for user consent.
+                      setBrowserError("");
+                      void openFeishuUrl(safeUrl)
+                        .catch(error => setBrowserError(error instanceof Error ? error.message : String(error)));
                     }}
                   >
                     在浏览器中授权飞书
@@ -254,7 +264,7 @@ export function FeishuConnectionSettings({
                         { action: "feishuAuthComplete", flowId: flow.flowId },
                       );
                       publishStatus(result);
-                      if (result.connected) {
+                      if (result.connected && !result.pendingAuthorization) {
                         setFlow(undefined);
                         await sync();
                       }
@@ -332,9 +342,9 @@ export function FeishuConnectionSettings({
           <p>{FEISHU_EXTERNAL_SEND_NOTICE}</p>
         </div>
       </TranscriptionSettingsCard>
-      {error && (
+      {(error || browserError) && (
         <p role="alert" className="feishu-connection-error">
-          {error}
+          {error || browserError}
         </p>
       )}
       <details className="feishu-strategy-comparison">
