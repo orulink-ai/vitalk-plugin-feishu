@@ -21,7 +21,7 @@
 插件语音录音会把当前飞书账号的通讯录名称和对象称呼作为会话热词，帮助 STT 识别人名；普通听写不加载此词表。已保存的称呼绑定优先匹配真实对象。若名称仍有歧义，启用 JEV 时它会结合原话和候选联系人给出建议。消息仍在草稿浮窗确认；任务和日程在不能唯一确认对象时会显示建议并停止执行，用户可说全名或在插件内绑定称呼后重试。JEV 排序不能代替发送或邀请授权。
 # 飞书 CLI 依赖
 
-插件清单的 `nativeDependencies` 声明 CLI 1.0.98 的版本、平台、原始可执行文件、下载地址和 SHA-256。插件自己的 v0.1.3 GitHub release 承载 Windows、macOS、Linux 的 x86_64 与 aarch64 资源。安装由桌面原生依赖管理器按清单下载并校验，保存在插件专属运行目录。使用者无需安装 Node.js 或配置全局 npm 包。插件设置页可检查和补装缺失资源，之后在插件内完成设备授权。
+插件清单的 `nativeDependencies` 声明 CLI 1.0.98 的版本、平台、原始可执行文件、下载地址和 SHA-256。插件自己的 v0.1.3 GitHub release 承载 Windows、macOS、Linux 的 x86_64 与 aarch64 资源。安装由桌面原生依赖管理器按清单下载并校验，保存在插件专属运行目录。使用者无需安装 Node.js 或配置全局 npm 包。插件设置页通过专用的 feishuPluginCliStatus 和 feishuPluginCliInstall 接口检查和补装缺失资源，之后在插件内完成设备授权。旧桌面端不支持这些接口时提示更新 ViTalk，安装请求不会回退到旧的全局安装接口。
 
 发布维护者运行 `npm ci`、`npm run typecheck`、`npm test`、`npm run release:prepare`。准备脚本需要 Node.js 与 Python 3，仅在发布构建时使用。它依据 `native-dependencies.lock.json` 下载 larksuite/cli v1.0.98 官方归档，验证固定归档摘要，再读取指定文件并验证清单中的可执行文件摘要。整个过程仅将校验通过的独立二进制写入 `dist/`。
 

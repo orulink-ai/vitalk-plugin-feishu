@@ -72,7 +72,7 @@ export function FeishuConnectionSettings({
   const busy = pending !== null;
   useEffect(() => {
     let active = true;
-    void experimentsRequest<CliStatus>({action:"feishuCliStatus"})
+    void experimentsRequest<CliStatus>({action:"feishuPluginCliStatus"})
       .then(value => {if(active) setCli(value);})
       .catch(error => {if(active) setError(String(error));});
     return () => {active = false;};
@@ -154,7 +154,7 @@ export function FeishuConnectionSettings({
           label="飞书 CLI"
           description={cli ? (cli.installed ? "已安装飞书 CLI " + (cli.version ?? "") : "尚未安装飞书 CLI") : "正在检查飞书 CLI…"}
           control={<Button variant="outline" disabled={busy || !cli || cli.installed} onClick={() => void perform("installCli", async () => {
-            setCli(await experimentsRequest<CliStatus>({action:"feishuCliInstall"}));
+            setCli(await experimentsRequest<CliStatus>({action:"feishuPluginCliInstall"}));
             publishStatus(await experimentsRequest<FeishuAuthStatus>({action:"feishuAuthStatus"}));
           })}>下载并安装</Button>}
         />

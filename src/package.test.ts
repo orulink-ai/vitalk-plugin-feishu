@@ -15,6 +15,8 @@ describe('独立飞书安装包',()=>{
     expect(pkg.manifest.permissions).toEqual(['feishu.messages','feishu.tasks','feishu.calendar']);
     expect(pkg.html).toContain('feishu.request');
     expect(pkg.html).not.toContain('__TAURI_INTERNALS__');
+    expect(pkg.html).toContain('feishuPluginCliInstall');
+    expect(pkg.html).not.toContain('feishuCliInstall');
     expect(bytes.length).toBeLessThan(2_000_000);
     expect((await readFile(root+'dist/vitalk-plugin-feishu.vitalk-plugin.json.sha256','utf8')).trim()).toBe(createHash('sha256').update(bytes).digest('hex'));
   });
