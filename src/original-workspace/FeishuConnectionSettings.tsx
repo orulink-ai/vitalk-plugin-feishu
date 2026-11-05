@@ -1,4 +1,4 @@
-import { Info, MessageSquare, RefreshCw } from "lucide-react";
+import { CheckCircle2, Info, MessageSquare, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { openFeishuUrl } from "../client";
 import { Badge } from "@/components/ui/badge";
@@ -27,7 +27,7 @@ import "./feishu-connection.css";
 
 type Operation =
   "check" | "authorize" | "complete" | "sync" | "compare" | "installCli";
-type CliStatus = {installed:boolean;version?:string};
+type CliStatus = { installed: boolean; version?: string };
 const models = [
   { value: "llm", label: "文字模型" },
   { value: "jev", label: "JEV 决策模型" },
@@ -65,7 +65,9 @@ export function FeishuConnectionSettings({
   }, []);
   const [checking, setChecking] = useState(!initialAuth);
   const [localCatalog, setCatalog] = useState<FeishuCatalog>();
-  const [flow, setFlow] = useState<FeishuAuthorizationFlow | undefined>(initialAuth?.pendingAuthorization);
+  const [flow, setFlow] = useState<FeishuAuthorizationFlow | undefined>(
+    initialAuth?.pendingAuthorization,
+  );
   const [error, setError] = useState("");
   const [browserError, setBrowserError] = useState("");
   const [pending, setPending] = useState<Operation | null>(null);
@@ -73,10 +75,16 @@ export function FeishuConnectionSettings({
   const busy = pending !== null;
   useEffect(() => {
     let active = true;
-    void experimentsRequest<CliStatus>({action:"feishuPluginCliStatus"})
-      .then(value => {if(active) setCli(value);})
-      .catch(error => {if(active) setError(String(error));});
-    return () => {active = false;};
+    void experimentsRequest<CliStatus>({ action: "feishuPluginCliStatus" })
+      .then((value) => {
+        if (active) setCli(value);
+      })
+      .catch((error) => {
+        if (active) setError(String(error));
+      });
+    return () => {
+      active = false;
+    };
   }, []);
   useEffect(() => {
     if (initialAuth) {
@@ -142,35 +150,72 @@ export function FeishuConnectionSettings({
       ? "检查中"
       : flow
         ? "等待本次授权"
-      : auth
-        ? auth.connected
-          ? auth.allPermissionsGranted === false
-            ? "需补充授权"
-            : "已连接"
-          : "未连接"
-        : "检查失败";
+        : auth
+          ? auth.connected
+            ? auth.allPermissionsGranted === false
+              ? "需补充授权"
+              : "已连接"
+            : "未连接"
+          : "检查失败";
   return (
     <SettingsSection
       className="feishu-connection-settings"
       icon={<MessageSquare size={20} />}
       title="飞书连接"
-      description="连接或重新授权一次申请联系人、消息、任务和日历权限。语音指令可直接发送明确消息、创建任务并通知、预约会议并邀请参与人。"
+      description="管理账号授权与通讯录。"
     >
       <TranscriptionSettingsCard>
-        <TranscriptionSettingsRow
-          label="飞书 CLI"
-          description={cli ? (cli.installed ? "已安装飞书 CLI " + (cli.version ?? "") : "尚未安装飞书 CLI") : "正在检查飞书 CLI…"}
-          control={<Button variant="outline" disabled={busy || !cli || cli.installed} onClick={() => void perform("installCli", async () => {
-            setCli(await experimentsRequest<CliStatus>({action:"feishuPluginCliInstall"}));
-            publishStatus(await experimentsRequest<FeishuAuthStatus>({action:"feishuAuthStatus"}));
-          })}>下载并安装</Button>}
-        />
+        {cli?.installed ? (
+          <div className="feishu-cli-ready">
+            <CheckCircle2 size={14} aria-hidden="true" />
+            <span>{"已安装飞书 CLI " + (cli.version ?? "")}</span>
+          </div>
+        ) : (
+          <TranscriptionSettingsRow
+            label="飞书 CLI"
+            description={
+              cli
+                ? cli.installed
+                  ? "已安装飞书 CLI " + (cli.version ?? "")
+                  : "尚未安装飞书 CLI"
+                : "正在检查飞书 CLI…"
+            }
+            control={
+              cli?.installed ? (
+                <Badge variant="secondary">已安装</Badge>
+              ) : !cli ? null : (
+                <Button
+                  variant="outline"
+                  disabled={busy}
+                  onClick={() =>
+                    void perform("installCli", async () => {
+                      setCli(
+                        await experimentsRequest<CliStatus>({
+                          action: "feishuPluginCliInstall",
+                        }),
+                      );
+                      publishStatus(
+                        await experimentsRequest<FeishuAuthStatus>({
+                          action: "feishuAuthStatus",
+                        }),
+                      );
+                    })
+                  }
+                >
+                  下载并安装
+                </Button>
+              )
+            }
+          />
+        )}
         <TranscriptionSettingsRow
           label="账号连接"
           description={
             (flow && auth?.connected
               ? "已有飞书连接；本次重新授权尚未完成，请完成下方官方页面确认。"
-              : auth?.message) ||
+              : auth?.connected && auth.allPermissionsGranted !== false
+                ? "账号已连接。"
+                : auth?.message) ||
             (checking || pending === "check"
               ? "正在检查飞书连接…"
               : "连接状态检查失败，请重试。")
@@ -185,7 +230,7 @@ export function FeishuConnectionSettings({
               {!checking && (
                 <Button
                   variant="outline"
-                  size="lg"
+                  size="sm"
                   disabled={busy}
                   onClick={() =>
                     void perform("check", async () => {
@@ -202,7 +247,13 @@ export function FeishuConnectionSettings({
               )}
               <Button
                 variant={auth?.connected ? "outline" : "default"}
-                size="lg"
+                className="feishu-authorize-button"
+                data-primary={
+                  !auth?.connected ||
+                  auth.allPermissionsGranted === false ||
+                  undefined
+                }
+                size="sm"
                 disabled={busy || checking}
                 onClick={() =>
                   void perform("authorize", async () => {
@@ -233,8 +284,14 @@ export function FeishuConnectionSettings({
             )}
             <div>
               <h3>完成飞书授权</h3>
-              <p>在浏览器或扫码完成登录确认后，回到这里确认。若只看到“权限已添加”，请返回原授权页面继续完成设备授权。</p>
-              {pending === "complete" && <p role="status">正在等待飞书完成设备确认，请保留授权页面；有效期内会自动接收回执。</p>}
+              <p>
+                在浏览器或扫码完成登录确认后，回到这里确认。若只看到“权限已添加”，请返回原授权页面继续完成设备授权。
+              </p>
+              {pending === "complete" && (
+                <p role="status">
+                  正在等待飞书完成设备确认，请保留授权页面；有效期内会自动接收回执。
+                </p>
+              )}
               <div className="feishu-connection-actions">
                 {safeUrl ? (
                   <a
@@ -246,8 +303,13 @@ export function FeishuConnectionSettings({
                       // Opening the verification page must remain possible while
                       // the native device-login command waits for user consent.
                       setBrowserError("");
-                      void openFeishuUrl(safeUrl)
-                        .catch(error => setBrowserError(error instanceof Error ? error.message : String(error)));
+                      void openFeishuUrl(safeUrl).catch((error) =>
+                        setBrowserError(
+                          error instanceof Error
+                            ? error.message
+                            : String(error),
+                        ),
+                      );
                     }}
                   >
                     在浏览器中授权飞书
@@ -256,26 +318,35 @@ export function FeishuConnectionSettings({
                   <p role="alert">授权链接无效，请重新连接。</p>
                 )}
                 <Button
-                  size="lg"
+                  size="sm"
                   disabled={busy || !safeUrl}
                   onClick={() =>
                     void perform("complete", async () => {
                       let result: FeishuAuthStatus;
                       try {
-                        result = await experimentsRequest<FeishuAuthStatus>(
-                          { action: "feishuAuthComplete", flowId: flow.flowId },
-                        );
+                        result = await experimentsRequest<FeishuAuthStatus>({
+                          action: "feishuAuthComplete",
+                          flowId: flow.flowId,
+                        });
                       } catch (failure) {
                         // A timed-out device code can no longer be confirmed.
                         // Reconcile with native state instead of leaving its QR
                         // visible indefinitely or treating an old login as success.
-                        const latest = await experimentsRequest<FeishuAuthStatus>({
-                          action: "feishuAuthStatus",
-                        }).catch(() => undefined);
+                        const latest =
+                          await experimentsRequest<FeishuAuthStatus>({
+                            action: "feishuAuthStatus",
+                          }).catch(() => undefined);
                         if (latest) publishStatus(latest);
-                        if (latest && !latest.pendingAuthorization && failure instanceof Error
-                          && (failure.message.includes("超时") || ("code" in failure && failure.code === "timeout"))) {
-                          throw new Error("本次授权请求未能确认，待确认流程已结束。已重新读取当前连接状态；如需继续，请重新发起授权。");
+                        if (
+                          latest &&
+                          !latest.pendingAuthorization &&
+                          failure instanceof Error &&
+                          (failure.message.includes("超时") ||
+                            ("code" in failure && failure.code === "timeout"))
+                        ) {
+                          throw new Error(
+                            "本次授权请求未能确认，待确认流程已结束。已重新读取当前连接状态；如需继续，请重新发起授权。",
+                          );
                         }
                         throw failure;
                       }
@@ -287,7 +358,9 @@ export function FeishuConnectionSettings({
                     })
                   }
                 >
-                  {pending === "complete" ? "正在等待授权回执…" : "我已完成授权"}
+                  {pending === "complete"
+                    ? "正在等待授权回执…"
+                    : "我已完成授权"}
                 </Button>
               </div>
             </div>
@@ -297,20 +370,20 @@ export function FeishuConnectionSettings({
           label="通讯录"
           description={
             current
-              ? `已缓存 ${current.recipients.length} 个对象 · ${current.lastSync ? `上次更新：${new Date(syncTime(current)).toLocaleString()}` : "尚未同步"}`
+              ? `已缓存 ${current.recipients.length} 个对象${current.lastSync ? ` · ${new Date(syncTime(current)).toLocaleDateString()} 更新` : " · 尚未同步"}`
               : "尚未同步联系人、群聊和机器人。"
           }
           status={
             <p className="feishu-catalog-hint">
               {current?.partial
                 ? "仅同步了部分可见对象，找不到时可搜索或重新更新。"
-                : "同步当前账号可见的联系人、群聊和机器人。"}
+                : null}
             </p>
           }
           control={
             <Button
               variant="outline"
-              size="lg"
+              size="sm"
               disabled={busy || checking || !auth?.connected}
               onClick={() => void perform("sync", sync)}
             >
@@ -319,50 +392,58 @@ export function FeishuConnectionSettings({
             </Button>
           }
         />
-        <TranscriptionSettingsRow
-          label="对象匹配方式"
-          description={
-            model === "llm"
-              ? "使用已配置的文字模型匹配对象，并生成消息正文。"
-              : "对象热词先辅助转写，已保存的称呼优先匹配；不确定时 JEV 排序候选，文字模型理解意图并整理内容。"
-          }
-          status={
-            <p className="feishu-catalog-hint">
-              消息可在发送浮窗中改人；任务或日程有多个候选时，请确认全名或绑定称呼后再执行。
-            </p>
-          }
-          control={
-            <Select
-              items={models}
-              value={model}
-              disabled={busy}
-              onValueChange={(value) => {
-                if (value === "llm" || value === "jev") onModelChange(value);
-              }}
-            >
-              <SelectTrigger
-                className="feishu-connection-model"
-                aria-label="对象匹配方式"
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="llm">文字模型</SelectItem>
-                <SelectItem value="jev">JEV 决策模型</SelectItem>
-              </SelectContent>
-            </Select>
-          }
-        />
-        <div className="feishu-connection-notice" role="note">
-          <Info size={16} aria-hidden="true" />
-          <p>{FEISHU_EXTERNAL_SEND_NOTICE}</p>
-        </div>
       </TranscriptionSettingsCard>
       {(error || browserError) && (
         <p role="alert" className="feishu-connection-error">
           {error || browserError}
         </p>
       )}
+      <details className="feishu-advanced-settings">
+        <summary>高级设置</summary>
+        <div className="feishu-advanced-content">
+          <TranscriptionSettingsRow
+            label="对象匹配方式"
+            description={
+              model === "llm"
+                ? "使用已配置的文字模型匹配对象，并生成消息正文。"
+                : "JEV 辅助候选排序，文字模型结合称呼与上下文判断对象。"
+            }
+            status={
+              <p className="feishu-catalog-hint">
+                称呼与通讯录作为模型上下文。对象不明确时需先确认。
+              </p>
+            }
+            control={
+              <Select
+                items={models}
+                value={model}
+                disabled={busy}
+                onValueChange={(value) => {
+                  if (value === "llm" || value === "jev") onModelChange(value);
+                }}
+              >
+                <SelectTrigger
+                  className="feishu-connection-model"
+                  aria-label="对象匹配方式"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="llm">文字模型</SelectItem>
+                  <SelectItem value="jev">JEV 决策模型</SelectItem>
+                </SelectContent>
+              </Select>
+            }
+          />
+          <div className="feishu-connection-notice" role="note">
+            <Info size={16} aria-hidden="true" />
+            <p>{FEISHU_EXTERNAL_SEND_NOTICE}</p>
+          </div>
+          {auth?.connected && auth.allPermissionsGranted !== false && (
+            <p className="feishu-diagnostic-status">{auth.message}</p>
+          )}
+        </div>
+      </details>
       <details className="feishu-strategy-comparison">
         <summary>高级 · 匹配策略测试</summary>
         <div className="feishu-comparison-content">
@@ -372,7 +453,7 @@ export function FeishuConnectionSettings({
           </p>
           <Button
             variant="outline"
-            size="lg"
+            size="sm"
             disabled={busy}
             onClick={() =>
               void perform("compare", async () => {

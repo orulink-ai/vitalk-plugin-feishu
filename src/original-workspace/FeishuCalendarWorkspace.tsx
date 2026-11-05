@@ -37,6 +37,7 @@ import {
   type CalendarItem,
 } from "./workspace-calendar";
 import { feishuDetailUrl } from "./workspace-receipts";
+import { WorkspaceCreateAction } from "./WorkspaceCreateAction";
 export function FeishuCalendarWorkspace({ replies }: { replies: AiReply[] }) {
   const [date, setDate] = useState(shanghaiDate),
     [view, setView] = useState<CalendarView>("week");
@@ -139,6 +140,14 @@ export function FeishuCalendarWorkspace({ replies }: { replies: AiReply[] }) {
           <p>主日历 · 北京时间（UTC+8）</p>
         </div>
       </div>
+      <WorkspaceCreateAction kind="calendar" onCreated={outcome=>{
+        if(outcome.kind==="calendar"){
+          const day=outcome.plan.start?.slice(0,10);
+          if(day&&validDate(day))setDate(day);
+        }
+        setRefresh(n=>n+1);
+        setFocusKey(n=>n+1);
+      }} />
       <div className="feishu-calendar-toolbar">
         <div className="feishu-date-navigation">
           <Button
@@ -372,9 +381,10 @@ export function FeishuCalendarWorkspace({ replies }: { replies: AiReply[] }) {
                   }
                 >
                   <ExternalLink data-icon="inline-start" />
-                  在飞书打开
+                  来源：飞书日程
                 </Button>
               )}
+              <p className="text-sm text-muted-foreground">插件暂不提供日程删除，请在飞书中操作。</p>
             </div>
           )}
         </SheetContent>

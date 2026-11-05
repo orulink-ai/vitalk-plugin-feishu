@@ -11,7 +11,7 @@ describe('独立飞书安装包',()=>{
     expect(pkg.format).toBe('vitalk-plugin/v1');
     expect(pkg.manifest).toEqual(JSON.parse(await readFile(root + 'manifest.json', 'utf8')));
     expect(pkg.manifest.id).toBe('vitalk-plugin-feishu');
-    expect(pkg.manifest.version).toBe('0.1.4');
+    expect(pkg.manifest.version).toBe('0.1.5');
     expect(pkg.manifest.permissions).toEqual(['feishu.messages','feishu.tasks','feishu.calendar']);
     expect(pkg.html).toContain('feishu.request');
     expect(pkg.html).not.toContain('__TAURI_INTERNALS__');
@@ -37,7 +37,7 @@ describe('插件自有 CLI 资源', () => {
       const suffix = platform.startsWith('windows-') ? '.exe' : '';
       expect(artifact.executable).toBe('lark-cli' + suffix);
       expect(artifact.url).toBe(
-        'https://github.com/orulink-ai/vitalk-plugin-feishu/releases/download/v0.1.4/lark-cli-1.0.98-' + platform + suffix,
+        'https://github.com/orulink-ai/vitalk-plugin-feishu/releases/download/v0.1.5/lark-cli-1.0.98-' + platform + suffix,
       );
       expect(artifact.sha256).toMatch(/^[a-f0-9]{64}$/);
     }

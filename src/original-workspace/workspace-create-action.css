@@ -1,0 +1,14 @@
+.feishu-create-action { min-width: 0; }
+.feishu-create-panel { margin-top: 12px; padding: 16px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--background); display: grid; gap: 12px; max-width: 680px; font-size: 13px; }
+.feishu-create-panel form { display: grid; gap: 10px; }
+.feishu-create-panel label { font-weight: 600; }
+.feishu-create-panel p, .feishu-create-panel h3 { margin: 0; line-height: 1.6; overflow-wrap: anywhere; }
+.feishu-create-panel h3 { font-size: 15px; font-weight: 600; }
+.feishu-create-panel textarea { box-sizing: border-box; resize: vertical; min-height: 96px; max-height: 240px; overflow-y: auto; }
+.feishu-create-hint { display: flex; gap: 16px; justify-content: space-between; color: var(--muted-foreground); font-size: 12px; }
+.feishu-create-hint span { flex-shrink: 0; }
+.feishu-create-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.feishu-create-panel dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 8px 12px; margin: 0; }
+.feishu-create-panel dt { color: var(--muted-foreground); }
+.feishu-create-panel dd { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.feishu-create-panel [role="alert"] { color: var(--destructive); }

@@ -9,6 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   Table,
   TableHeader,
@@ -35,9 +36,13 @@ import {
   completeTask,
   useTaskCompletion,
   dismissTaskCompletion,
+  taskCompletionFor,
+  completionPreventsRetry,
 } from "./task-completion";
 import { FeishuTaskAssignees } from "./FeishuTaskAssignees";
 import { feishuDetailUrl } from "./workspace-receipts";
+import { WorkspaceCreateAction } from "./WorkspaceCreateAction";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 export type FeishuTaskItem = {
   id: string;
   title: string;
@@ -86,12 +91,15 @@ export function FeishuTaskWorkspace({
   const [deadline, setDeadline] = useState<DeadlineFilter>("all");
   const [owner, setOwner] = useState("all");
   const [sort, setSort] = useState<TaskSort>("original");
-  const [filtersOpen, setFiltersOpen] = useState(true);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const filterId = useId();
   const [loading, setLoading] = useState(false),
     [error, setError] = useState("");
   const [refresh, setRefresh] = useState(0);
+  const [selectedTask,setSelectedTask]=useState<FeishuTaskItem|null>(null);
+  const [detailError,setDetailError]=useState<{taskId:string;accountId:string;message:string}>();
   const completion = useTaskCompletion(result?.accountId);
+  const selectedCompletion = useTaskCompletion(result?.accountId, selectedTask?.id);
   const pending = completion?.pending ? completion.taskId : "";
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const epoch = useRef(0),
@@ -108,6 +116,7 @@ export function FeishuTaskWorkspace({
     setLoading(true);
     setError("");
     setResult(undefined);
+    setSelectedTask(null);
     void experimentsRequest<TaskList>({ action: "feishuTaskList", completed })
       .then((v) => {
         if (!alive.current || version !== epoch.current) return;
@@ -157,9 +166,11 @@ export function FeishuTaskWorkspace({
   }
   async function finish(task: FeishuTaskItem) {
     if (completion?.pending || task.completed || !result?.accountId) return;
+    if (completionPreventsRetry(taskCompletionFor(result.accountId, task.id))) return;
     const version = epoch.current;
     const account = result.accountId;
     setError("");
+    setDetailError(undefined);
     const receipt = await completeTask(account, task.id, task.title);
     // A stale operation must not refresh or overwrite a newly selected list/account.
     if (
@@ -225,19 +236,17 @@ export function FeishuTaskWorkspace({
     ownerName,
   );
   const filterCount =
-    Number(status !== "all") +
     Number(deadline !== "all") +
     Number(owner !== "all") +
     Number(creator !== "all") +
-    Number(startFilter !== "all");
-  const isFiltered = !!query.trim() || filterCount > 0;
-  const canReset = isFiltered || sort !== "original";
+    Number(startFilter !== "all") + Number(sort !== "original");
+  const isFiltered = !!query.trim() || filterCount > 0 || status !== "all";
+  const canReset = !!query.trim() || filterCount > 0;
   function resetFilters() {
     setQuery("");
     setDeadline("all");
     setOwner("all");
     setSort("original");
-    setStatus("all");
     setCreator("all");
     setStartFilter("all");
     setDueFrom("");
@@ -259,13 +268,21 @@ export function FeishuTaskWorkspace({
         </div>
       </div>
       <div className="feishu-task-query">
+        <WorkspaceCreateAction kind="task" onCreated={()=>setRefresh(n=>n+1)} />
         <div className="feishu-list-toolbar">
           <Input
             aria-label="搜索当前已加载任务"
-            placeholder="搜索标题、说明、负责人或创建人"
+            placeholder="搜索已加载任务"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
+          <ToggleGroup aria-label="任务完成状态" value={[status]} onValueChange={values=>{
+            if(["pending","completed","all"].includes(values[0]))setStatus(values[0]);
+          }} variant="outline" size="sm">
+            <ToggleGroupItem value="pending">未完成</ToggleGroupItem>
+            <ToggleGroupItem value="completed">已完成</ToggleGroupItem>
+            <ToggleGroupItem value="all">全部</ToggleGroupItem>
+          </ToggleGroup>
           <Button
             variant="outline"
             size="sm"
@@ -292,18 +309,6 @@ export function FeishuTaskWorkspace({
         {filtersOpen && (
           <div className="feishu-task-filter-panel" id={filterId}>
             <FieldGroup>
-              <WorkspaceSelect
-                label="完成状态"
-                ariaLabel="完成状态筛选"
-                value={status}
-                onChange={setStatus}
-                items={[
-                  { value: "all", label: "全部状态" },
-                  { value: "pending", label: "未完成" },
-                  { value: "completed", label: "已完成" },
-                ]}
-              />
-
               <WorkspaceSelect
                 label="负责人"
                 ariaLabel="负责人筛选"
@@ -389,16 +394,6 @@ export function FeishuTaskWorkspace({
         )}
         {canReset && (
           <div className="feishu-active-filters">
-            {status !== "all" && (
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => setStatus("all")}
-              >
-                {status === "pending" ? "未完成" : "已完成"}
-                <X data-icon="inline-end" />
-              </Button>
-            )}
             {creator !== "all" && (
               <Button
                 variant="secondary"
@@ -465,7 +460,7 @@ export function FeishuTaskWorkspace({
       )}
       {loading && <p role="status">正在读取飞书任务…</p>}
       {error && <p role="alert">{error}</p>}
-      {completion && (
+      {completion && completion.taskId !== selectedTask?.id && (
         <div className="feishu-completion-receipt">
           <span>{completion.title}</span>
           <div
@@ -504,8 +499,7 @@ export function FeishuTaskWorkspace({
             </TableHeader>
             <TableBody>
               {rows.map((t) => {
-                const url = feishuDetailUrl(t.url),
-                  due = Number.isFinite(Number(t.dueTimestamp))
+                const due = Number.isFinite(Number(t.dueTimestamp))
                     ? Number(t.dueTimestamp)
                     : 0;
                 return (
@@ -514,7 +508,7 @@ export function FeishuTaskWorkspace({
                       <Checkbox
                         aria-label={`完成任务：${t.title}`}
                         checked={t.completed}
-                        disabled={!!pending || t.completed}
+                        disabled={!!pending || t.completed || completionPreventsRetry(taskCompletionFor(result.accountId,t.id))}
                         onCheckedChange={(value) => {
                           if (value) void finish(t);
                         }}
@@ -587,19 +581,13 @@ export function FeishuTaskWorkspace({
                         : "未设置"}
                     </TableCell>
                     <TableCell>
-                      {url && (
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() =>
-                            void openFeishuUrl(url)
-                              .catch(() => setError("无法打开飞书任务。"))
-                          }
+                          onClick={() => setSelectedTask(t)}
                         >
-                          <ExternalLink data-icon="inline-start" />
                           详情
                         </Button>
-                      )}
                     </TableCell>
                   </TableRow>
                 );
@@ -632,6 +620,29 @@ export function FeishuTaskWorkspace({
         列表显示当前账号负责的任务，搜索仅覆盖已加载内容。新建任务请使用右上角语音指令。
       </p>
       <WorkspaceHistory replies={replies} kind="feishuTask" />
+      <Sheet open={selectedTask!==null} onOpenChange={open=>{if(!open)setSelectedTask(null);}}>
+        <SheetContent className="feishu-calendar-detail-sheet">
+          <SheetHeader><SheetTitle>任务详情</SheetTitle><SheetDescription>来自飞书任务</SheetDescription></SheetHeader>
+          {selectedTask&&result&&<div className="feishu-calendar-detail-body">
+            <h3>{selectedTask.title||"未命名任务"}</h3>
+            <p>{selectedTask.description||"未填写任务说明"}</p>
+            <p>负责人：{taskAssigneeIds(selectedTask).map(ownerName).join("、")||"未分配"}</p>
+            <p>状态：{selectedTask.completed?"已完成":"未完成"}</p>
+            <p>截止时间：{Number(selectedTask.dueTimestamp)>0?new Date(Number(selectedTask.dueTimestamp)).toLocaleString("zh-CN",{timeZone:"Asia/Shanghai",...(selectedTask.dueIsAllDay?{year:"numeric",month:"numeric",day:"numeric"} as const:{})}):"未设置"}</p>
+            {selectedCompletion?.taskId===selectedTask.id&&<div className={`feishu-task-detail-receipt flex-col ${selectedCompletion.pending||selectedCompletion.status==="completed"?"":"text-destructive"}`} role={selectedCompletion.pending||selectedCompletion.status==="completed"?"status":"alert"}>
+              <p>{selectedCompletion.message}</p>
+              {completionPreventsRetry(selectedCompletion)&&selectedCompletion.status!=="completed"&&<p className="text-sm text-muted-foreground">本次操作不会再次提交，请在飞书核对后刷新列表。</p>}
+            </div>}
+            {detailError?.taskId===selectedTask.id&&detailError.accountId===result.accountId&&<p role="alert">{detailError.message}</p>}
+            {!selectedTask.completed&&<Button variant="outline" disabled={!!pending||completionPreventsRetry(selectedCompletion)} onClick={()=>void finish(selectedTask)}>完成任务</Button>}
+            {feishuDetailUrl(selectedTask.url)&&<Button variant="outline" onClick={()=>{
+              setDetailError(undefined);
+              void openFeishuUrl(feishuDetailUrl(selectedTask.url)!).catch(()=>setDetailError({taskId:selectedTask.id,accountId:result.accountId,message:"无法打开飞书任务。"}));
+            }}><ExternalLink data-icon="inline-start"/>来源：飞书任务</Button>}
+            <p className="text-sm text-muted-foreground">插件暂不提供任务编辑和删除，请在飞书中操作。</p>
+          </div>}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

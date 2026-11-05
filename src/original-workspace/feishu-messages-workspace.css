@@ -1,0 +1,161 @@
+.feishu-messages-workspace {
+  display: grid;
+  gap: 20px;
+}
+.feishu-messages-workspace > header,
+.feishu-message-inline-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.feishu-messages-workspace h2 {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
+}
+.feishu-messages-workspace > header p {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+  margin: 5px 0 0;
+}
+.feishu-message-request {
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px;
+}
+.feishu-message-request > label {
+  font-size: 13px;
+  font-weight: 600;
+}
+.feishu-message-request textarea {
+  min-height: 100px;
+  font-size: 14px;
+  line-height: 1.6;
+  resize: vertical;
+}
+.feishu-message-request > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.feishu-message-request span,
+.feishu-message-inline-note {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+}
+.feishu-message-inline-draft {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px;
+  display: grid;
+  gap: 14px;
+}
+.feishu-message-inline-heading h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+.feishu-messages-workspace .feishu-message-panel {
+  color: var(--foreground);
+  gap: 12px;
+}
+.feishu-messages-workspace .feishu-message-panel .feishu-message-recipient {
+  background: var(--muted);
+  border-radius: 8px;
+  padding-right: 12px;
+}
+.feishu-messages-workspace
+  .feishu-recipient-identity
+  .feishu-recipient-heading {
+  color: var(--foreground);
+  font-size: 14px;
+}
+.feishu-messages-workspace .feishu-recipient-identity > span,
+.feishu-messages-workspace .feishu-message-status,
+.feishu-messages-workspace .feishu-message-receipt,
+.feishu-messages-workspace .feishu-message-hint,
+.feishu-messages-workspace .feishu-recipient-results p {
+  color: var(--muted-foreground);
+}
+.feishu-messages-workspace .feishu-message-panel textarea {
+  font-size: 15px;
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  min-height: 110px;
+  caret-color: var(--foreground);
+}
+.feishu-messages-workspace .feishu-message-panel textarea:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.feishu-messages-workspace .feishu-message-panel button:focus-visible {
+  outline-color: var(--ring);
+}
+.feishu-messages-workspace .feishu-message-actions {
+  justify-content: flex-end;
+}
+.feishu-messages-workspace .feishu-message-panel .feishu-message-send {
+  flex: 0 0 auto;
+  width: auto;
+  height: 34px;
+  min-height: 34px;
+  border-radius: 7px;
+  padding: 0 12px;
+  gap: 6px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+.feishu-messages-workspace
+  .feishu-message-panel
+  .feishu-message-send:hover:not(:disabled) {
+  background: var(--primary);
+  opacity: 0.85;
+}
+.feishu-messages-workspace .feishu-message-send svg {
+  width: 16px;
+  height: 16px;
+}
+.feishu-messages-workspace .feishu-message-send > .feishu-send-label {
+  position: static;
+  width: auto;
+  height: auto;
+  margin: 0;
+  overflow: visible;
+  clip: auto;
+  font-size: 13px;
+}
+.feishu-messages-workspace .feishu-recipient-search input {
+  border: 1px solid var(--border);
+  background: var(--background);
+}
+.feishu-messages-workspace .feishu-recipient-option:hover {
+  background: var(--muted);
+}
+.feishu-messages-workspace [role="alert"] {
+  color: var(--destructive);
+  font-size: 13px;
+  line-height: 1.6;
+}
+@media (max-width: 560px) {
+  .feishu-message-request > div {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .feishu-message-request > div button {
+    align-self: flex-end;
+  }
+}
+
+/* The shared native popup uses light text; the workspace has a light surface. */
+.quick-message-page .feishu-messages-workspace .feishu-message-panel textarea,
+.feishu-messages-workspace .feishu-message-panel textarea:disabled {
+  color: var(--foreground);
+  opacity: 1;
+}

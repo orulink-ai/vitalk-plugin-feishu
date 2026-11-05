@@ -10,10 +10,12 @@ export type TaskCompletion = {
 };
 // Keep submitted operations alive when a tab unmounts. Receipts never cross accounts.
 const receipts = new Map<string, TaskCompletion>();
+const taskReceipts = new Map<string, TaskCompletion>();
 const pending = new Map<string, Promise<TaskCompletion>>();
 const listeners = new Set<() => void>();
 function publish(receipt: TaskCompletion) {
   receipts.set(receipt.accountId, receipt);
+  taskReceipts.set(JSON.stringify([receipt.accountId, receipt.taskId]), receipt);
   for (const listener of listeners) listener();
 }
 export function dismissTaskCompletion(accountId: string) {
@@ -27,10 +29,18 @@ function subscribe(listener: () => void) {
     listeners.delete(listener);
   };
 }
-export function useTaskCompletion(accountId?: string) {
+export function taskCompletionFor(accountId?: string, taskId?: string) {
+  return accountId && taskId
+    ? taskReceipts.get(JSON.stringify([accountId, taskId]))
+    : undefined;
+}
+export function completionPreventsRetry(receipt?: TaskCompletion) {
+  return !!receipt && !receipt.pending && ["uncertain", "unknown", "failed", "completed"].includes(receipt.status);
+}
+export function useTaskCompletion(accountId?: string, taskId?: string) {
   const snapshot = useCallback(
-    () => (accountId ? receipts.get(accountId) : undefined),
-    [accountId],
+    () => taskId ? taskCompletionFor(accountId, taskId) : (accountId ? receipts.get(accountId) : undefined),
+    [accountId, taskId],
   );
   return useSyncExternalStore(subscribe, snapshot, snapshot);
 }
@@ -41,6 +51,11 @@ export function completeTask(
 ): Promise<TaskCompletion> {
   const existing = pending.get(accountId);
   if (existing) return existing;
+  const previous = taskCompletionFor(accountId, taskId);
+  if (completionPreventsRetry(previous)) {
+    publish(previous!);
+    return Promise.resolve(previous!);
+  }
   const initial = {
     accountId,
     taskId,
@@ -55,12 +70,15 @@ export function completeTask(
     accountId,
     id: taskId,
   })
-    .then((result) => ({
-      ...initial,
-      pending: false,
-      status: result.status,
-      message: result.message,
-    }))
+    .then((result) => {
+      const known = result && ["completed", "uncertain", "unknown", "rejected", "failed", "cancelled"].includes(result.status);
+      return {
+        ...initial,
+        pending: false,
+        status: known ? result.status : "uncertain",
+        message: known && typeof result.message === "string" ? result.message : "未取得明确任务回执，请在飞书核对；不会重复提交。",
+      };
+    })
     .catch((error: unknown) => ({
       ...initial,
       pending: false,
