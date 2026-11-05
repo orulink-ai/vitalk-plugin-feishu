@@ -9,12 +9,35 @@ describe('独立飞书安装包',()=>{
     const bytes=await readFile(root+'dist/vitalk-plugin-feishu.vitalk-plugin.json');
     const pkg=JSON.parse(bytes.toString());
     expect(pkg.format).toBe('vitalk-plugin/v1');
+    expect(pkg.manifest).toEqual(JSON.parse(await readFile(root + 'manifest.json', 'utf8')));
     expect(pkg.manifest.id).toBe('vitalk-plugin-feishu');
-    expect(pkg.manifest.version).toBe('0.1.2');
+    expect(pkg.manifest.version).toBe('0.1.3');
     expect(pkg.manifest.permissions).toEqual(['feishu.messages','feishu.tasks','feishu.calendar']);
     expect(pkg.html).toContain('feishu.request');
     expect(pkg.html).not.toContain('__TAURI_INTERNALS__');
     expect(bytes.length).toBeLessThan(2_000_000);
     expect((await readFile(root+'dist/vitalk-plugin-feishu.vitalk-plugin.json.sha256','utf8')).trim()).toBe(createHash('sha256').update(bytes).digest('hex'));
+  });
+});
+
+describe('插件自有 CLI 资源', () => {
+  it('为每个支持的平台声明固定版本、插件发布地址和内容摘要', async () => {
+    const manifest = JSON.parse(await readFile(root + 'manifest.json', 'utf8'));
+    const [dependency] = manifest.nativeDependencies;
+    expect(dependency.id).toBe('lark-cli');
+    expect(dependency.version).toBe('1.0.98');
+    expect(Object.keys(dependency.platforms).sort()).toEqual([
+      'darwin-aarch64', 'darwin-x86_64', 'linux-aarch64', 'linux-x86_64',
+      'windows-aarch64', 'windows-x86_64',
+    ]);
+    for (const [platform, value] of Object.entries(dependency.platforms)) {
+      const artifact = value as {url: string; sha256: string; executable: string};
+      const suffix = platform.startsWith('windows-') ? '.exe' : '';
+      expect(artifact.executable).toBe('lark-cli' + suffix);
+      expect(artifact.url).toBe(
+        'https://github.com/orulink-ai/vitalk-plugin-feishu/releases/download/v0.1.3/lark-cli-1.0.98-' + platform + suffix,
+      );
+      expect(artifact.sha256).toMatch(/^[a-f0-9]{64}$/);
+    }
   });
 });
