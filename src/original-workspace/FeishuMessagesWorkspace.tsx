@@ -13,6 +13,7 @@ import {
   type FeishuRecipient,
 } from "./FeishuMessagePanel";
 import "./feishu-messages-workspace.css";
+import {VoiceShortcutHint} from "./VoiceShortcutHint";
 
 const statuses = new Set([
   "composing",
@@ -72,9 +73,10 @@ function readDraft(value: unknown): FeishuMessageDraft | null {
 type Props = {
   snapshot: ExperimentsSnapshot;
   onDraftUpdate?: (draft: FeishuMessageDraft | null) => void;
+  onOpenShortcuts?: () => void;
 };
 type Job = "prepare" | "send" | "dismiss" | "voice" | null;
-export function FeishuMessagesWorkspace({ snapshot, onDraftUpdate }: Props) {
+export function FeishuMessagesWorkspace({ snapshot, onDraftUpdate, onOpenShortcuts }: Props) {
   const [prompt, setPrompt] = useState("");
   const [draft, setDraft] = useState<FeishuMessageDraft | null>(() => {
     try {
@@ -373,7 +375,7 @@ export function FeishuMessagesWorkspace({ snapshot, onDraftUpdate }: Props) {
           <h2>消息</h2>
           <p>先整理草稿，确认对象和正文后发送。</p>
         </div>
-        <Button
+        <div className="feishu-voice-entry"><Button
           variant="outline"
           disabled={busy || (openDraft && !recording)}
           onClick={() => void voice()}
@@ -381,6 +383,7 @@ export function FeishuMessagesWorkspace({ snapshot, onDraftUpdate }: Props) {
           {recording ? <Square size={14} /> : <Mic size={14} />}{" "}
           {recording ? "结束语音输入" : "语音输入"}
         </Button>
+        <VoiceShortcutHint purpose="message" config={snapshot.config} onOpenSettings={onOpenShortcuts}/></div>
       </header>
       {!openDraft && (
         <div className="feishu-message-request">

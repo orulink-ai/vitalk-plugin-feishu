@@ -1,5 +1,5 @@
 import {useEffect,useId,useRef,useState} from "react";
-import {ExternalLink,Plus} from "lucide-react";
+import {ExternalLink,Plus,X} from "lucide-react";
 import {Button} from "@/components/ui/button";
 import {Textarea} from "@/components/ui/textarea";
 import {experimentsRequest} from "../experiments/client";
@@ -41,10 +41,12 @@ export function WorkspaceCreateAction({kind,onCreated,disabled=false,className="
   const [outcome,setOutcome]=useState<WorkspaceCreateOutcome|null>(null);
   const [error,setError]=useState(""),[linkError,setLinkError]=useState(""),[refreshError,setRefreshError]=useState("");
   const pending=useRef(false),mounted=useRef(true),version=useRef(0);
+  const trigger=useRef<HTMLButtonElement>(null);
   useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;version.current++;};},[]);
   const id=useId(),label=kind==="task"?"任务":"日程",busy=phase==="creating";
   const text=prompt.trim(),length=[...text].length;
   const url=outcome?feishuDetailUrl(outcome.receipt.url):undefined;
+  const close=()=>{if(pending.current)return;setOpen(false);trigger.current?.focus();};
   const freshDraft=()=>{version.current++;setPrompt("");setOutcome(null);setError("");setLinkError("");setRefreshError("");setPhase("draft");};
   async function submit() {
 
@@ -64,16 +66,18 @@ export function WorkspaceCreateAction({kind,onCreated,disabled=false,className="
     } finally {pending.current=false;}
   }
   return <div className={`feishu-create-action ${className}`}>
-    <Button type="button" variant="outline" disabled={disabled||busy} aria-expanded={open} aria-controls={`${id}-panel`} onClick={()=>setOpen(value=>!value)}>
+    <Button ref={trigger} type="button" variant="outline" disabled={disabled||busy} aria-expanded={open} aria-controls={`${id}-panel`} onClick={()=>open?close():setOpen(true)}>
       <Plus data-icon="inline-start"/>{open?`收起${label}创建`:`创建${label}`}
     </Button>
-    {open&&<section id={`${id}-panel`} className="feishu-create-panel" aria-label={`${label}创建`} aria-busy={busy}>
-      {phase==="draft"||busy?<div>
+    {open&&<aside id={`${id}-panel`} role="dialog" aria-modal="false" aria-labelledby={`${id}-title`} className="feishu-create-panel" aria-busy={busy} onKeyDown={event=>{if(event.key==="Escape"){event.stopPropagation();close();}}}>
+      <header className="feishu-create-header"><div><h2 id={`${id}-title`}>创建{label}</h2><p>描述安排，交给模型整理</p></div><Button type="button" variant="ghost" size="icon-sm" aria-label="关闭创建面板" disabled={busy} onClick={close}><X/></Button></header>
+      <div className="feishu-create-body">
+      {phase==="draft"||busy?<div className="feishu-create-fields">
         <label htmlFor={`${id}-prompt`}>{label}要求</label>
         <Textarea autoFocus id={`${id}-prompt`} value={prompt} disabled={busy} aria-describedby={`${id}-hint`} aria-invalid={length>500||undefined} onChange={event=>setPrompt(event.target.value)} rows={3} placeholder={kind==="task"?"描述负责人、要做的事和截止时间":"描述要安排的事项、日期时间和参与人"}/>
         <p id={`${id}-hint`} className="feishu-create-hint">用自己的话描述，最多500字。<span>{length}/500</span></p>
         {busy&&<p role="status">正在创建{label}，请等待飞书回执…</p>}
-        <div className="feishu-create-actions"><Button type="button" onClick={()=>void submit()} disabled={disabled||busy||!length||length>500}>{busy?"正在创建…":`创建${label}`}</Button><Button type="button" variant="ghost" disabled={busy} onClick={()=>setOpen(false)}>取消</Button></div>
+        <div className="feishu-create-actions"><Button type="button" onClick={()=>void submit()} disabled={disabled||busy||!length||length>500}>{busy?"正在创建…":`创建${label}`}</Button><Button type="button" variant="ghost" disabled={busy} onClick={close}>取消</Button></div>
       </div>:outcome?<>
         <p role="status">{outcome.kind==="task"?"任务已创建":"日程已创建"}</p>
         <h3>{outcome.plan.summary||`飞书${label}`}</h3>
@@ -101,6 +105,7 @@ export function WorkspaceCreateAction({kind,onCreated,disabled=false,className="
         <Button type="button" variant="outline" onClick={freshDraft}>重新填写</Button>
       </>}
       {refreshError&&<p role="alert">{refreshError}</p>}{linkError&&<p role="alert">{linkError}</p>}
-    </section>}
+      </div>
+    </aside>}
   </div>;
 }
