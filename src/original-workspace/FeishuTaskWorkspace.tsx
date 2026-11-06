@@ -2,7 +2,6 @@ import { useEffect, useId, useRef, useState } from "react";
 import {
   RefreshCw,
   ExternalLink,
-  ChevronDown,
   SlidersHorizontal,
   X,
 } from "lucide-react";
@@ -101,7 +100,6 @@ export function FeishuTaskWorkspace({
   const completion = useTaskCompletion(result?.accountId);
   const selectedCompletion = useTaskCompletion(result?.accountId, selectedTask?.id);
   const pending = completion?.pending ? completion.taskId : "";
-  const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const epoch = useRef(0),
     alive = useRef(true);
   useEffect(() => {
@@ -268,8 +266,8 @@ export function FeishuTaskWorkspace({
         </div>
       </div>
       <div className="feishu-task-query">
-        <WorkspaceCreateAction kind="task" onCreated={()=>setRefresh(n=>n+1)} />
         <div className="feishu-list-toolbar">
+          <WorkspaceCreateAction kind="task" onCreated={()=>setRefresh(n=>n+1)} />
           <Input
             aria-label="搜索当前已加载任务"
             placeholder="搜索已加载任务"
@@ -515,41 +513,7 @@ export function FeishuTaskWorkspace({
                       />
                     </TableCell>
                     <TableCell>
-                      {t.title.length > 56 ? (
-                        <Button
-                          variant="ghost"
-                          className="feishu-task-title-toggle"
-                          aria-expanded={expanded.has(t.id)}
-                          aria-label={`${expanded.has(t.id) ? "收起" : "展开"}任务标题：${t.title}`}
-                          onClick={() =>
-                            setExpanded((current) => {
-                              const next = new Set(current);
-                              if (next.has(t.id)) next.delete(t.id);
-                              else next.add(t.id);
-                              return next;
-                            })
-                          }
-                        >
-                          <strong
-                            className={`${t.completed ? "feishu-completed" : ""} ${expanded.has(t.id) ? "" : "feishu-task-title-clamped"}`}
-                          >
-                            {t.title}
-                          </strong>
-                          <ChevronDown aria-hidden="true" />
-                        </Button>
-                      ) : (
-                        <strong
-                          className={t.completed ? "feishu-completed" : ""}
-                        >
-                          {t.title || "未命名任务"}
-                        </strong>
-                      )}
-                      {t.description && (
-                        <details>
-                          <summary>任务说明</summary>
-                          <p>{t.description}</p>
-                        </details>
-                      )}
+                      <Button variant="ghost" className="feishu-task-open-title" onClick={()=>setSelectedTask(t)} aria-label={`查看任务：${t.title || "未命名任务"}`}><span className={t.completed?"feishu-completed":""}>{t.title || "未命名任务"}</span></Button>
                     </TableCell>
                     <TableCell>
                       <FeishuTaskAssignees
@@ -617,7 +581,7 @@ export function FeishuTaskWorkspace({
         </>
       )}
       <p className="feishu-workspace-boundary">
-        列表显示当前账号负责的任务，搜索仅覆盖已加载内容。新建任务请使用右上角语音指令。
+        列表同步当前账号负责的任务；搜索范围为已加载内容。可直接创建，也可使用语音指令。
       </p>
       <WorkspaceHistory replies={replies} kind="feishuTask" />
       <Sheet open={selectedTask!==null} onOpenChange={open=>{if(!open)setSelectedTask(null);}}>

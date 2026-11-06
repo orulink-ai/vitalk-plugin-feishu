@@ -128,7 +128,7 @@ export function FeishuCalendarWorkspace({ replies }: { replies: AiReply[] }) {
         : date.replaceAll("-", "/")
     : "请选择日期";
   return (
-    <div className="feishu-workspace-detail feishu-calendar-workspace">
+    <div className="feishu-workspace-detail feishu-calendar-workspace" data-time-view={view==="day"||view==="week"}>
       <div className="feishu-detail-header">
         <div>
           <h2>
@@ -139,7 +139,6 @@ export function FeishuCalendarWorkspace({ replies }: { replies: AiReply[] }) {
           </h2>
           <p>主日历 · 北京时间（UTC+8）</p>
         </div>
-      </div>
       <WorkspaceCreateAction kind="calendar" onCreated={outcome=>{
         if(outcome.kind==="calendar"){
           const day=outcome.plan.start?.slice(0,10);
@@ -148,7 +147,8 @@ export function FeishuCalendarWorkspace({ replies }: { replies: AiReply[] }) {
         setRefresh(n=>n+1);
         setFocusKey(n=>n+1);
       }} />
-      <div className="feishu-calendar-toolbar">
+      </div>
+      <div className="feishu-calendar-toolbar" role="group" aria-label="日程导航与视图">
         <div className="feishu-date-navigation">
           <Button
             variant="outline"

@@ -6,6 +6,28 @@ const {request,openUrl}=vi.hoisted(()=>({request:vi.fn(),openUrl:vi.fn()}));
 vi.mock("../experiments/client",()=>({experimentsRequest:request}));
 vi.mock("../client",()=>({openFeishuUrl:openUrl}));
 afterEach(()=>{cleanup();request.mockReset();openUrl.mockReset();vi.restoreAllMocks();});
+it("opens a named nonmodal composer and preserves its draft after Escape",async()=>{
+  render(<WorkspaceCreateAction kind="task"/>);
+  await draft("task","周五前核对资料");
+  const panel=screen.getByRole("dialog",{name:"创建任务"});
+  expect(panel.getAttribute("aria-modal")).toBe("false");
+  fireEvent.keyDown(panel,{key:"Escape"});
+  expect(screen.queryByRole("dialog")).toBeNull();
+  fireEvent.click(screen.getByRole("button",{name:"创建任务"}));
+  expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("周五前核对资料");
+  expect(request).not.toHaveBeenCalled();
+});
+it("keeps an in-flight composer open on Escape and disables its close action",async()=>{
+  const pending=deferred<typeof taskReply>();request.mockReturnValue(pending.promise);
+  render(<WorkspaceCreateAction kind="task"/>);await draft("task","核对资料");
+  fireEvent.click(screen.getByRole("button",{name:"创建任务"}));
+  const panel=screen.getByRole("dialog",{name:"创建任务"});
+  fireEvent.keyDown(panel,{key:"Escape"});
+  expect(screen.getByRole("dialog")).toBe(panel);
+  expect((screen.getByRole("button",{name:"关闭创建面板"}) as HTMLButtonElement).disabled).toBe(true);
+  await act(async()=>pending.resolve(taskReply));
+  expect(await screen.findByText("任务已创建")).toBeTruthy();
+});
 const taskReply={receipt:{guid:"00000000-0000-4000-8000-000000000001",url:"https://applink.feishu.cn/client/todo/detail?guid=task"},plan:{summary:"核对方案",description:"保留完整数字",recipientQuery:"小琼",due:"2026-11-13"}};
 function deferred<T>() {let resolve!:(value:T)=>void;let reject!:(reason:unknown)=>void;const promise=new Promise<T>((done,fail)=>{resolve=done;reject=fail;});return {resolve,reject,promise};}
 async function draft(kind:"task"|"calendar",value:string) {

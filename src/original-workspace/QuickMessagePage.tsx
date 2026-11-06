@@ -11,6 +11,7 @@ import type { FeishuTab } from "./FeishuOverview";
 import { FeishuActivityPanel } from "./FeishuActivityPanel";
 import { FeishuMessagesWorkspace } from "./FeishuMessagesWorkspace";
 import { FeishuVoiceControls } from "./FeishuVoiceControls";
+import { VoiceShortcutHint } from "./VoiceShortcutHint";
 import { FeishuTaskWorkspace } from "./FeishuTaskWorkspace";
 import { FeishuCalendarWorkspace } from "./FeishuCalendarWorkspace";
 import { workspaceReplies, mergeWorkspaceReply } from "./workspace-receipts";
@@ -35,6 +36,15 @@ export function QuickMessagePage() {
   const [snapshot, setSnapshot] = useState<ExperimentsSnapshot>();
   const [error, setError] = useState("");
   const [tab, setTab] = useState<FeishuTab>("messages");
+  const [shortcutsOpen,setShortcutsOpen]=useState(false);
+  const [voiceContainer,setVoiceContainer]=useState<HTMLDivElement|null>(null);
+  const shortcutsRegion=useRef<HTMLDetailsElement>(null);
+  function openShortcuts(){setShortcutsOpen(true);setTab("settings");}
+  useEffect(()=>{
+    if(tab!=="settings"||!shortcutsOpen)return;
+    shortcutsRegion.current?.scrollIntoView?.({block:"center",behavior:"smooth"});
+    shortcutsRegion.current?.querySelector("summary")?.focus();
+  },[tab,shortcutsOpen]);
   const [visited, setVisited] = useState(()=>new Set<FeishuTab>(["messages"]));
   const [auth, setAuth] = useState<FeishuAuthStatus>();
   const [authPending, setAuthPending] = useState(true);
@@ -108,6 +118,7 @@ export function QuickMessagePage() {
     <section
       ref={pageRegion}
       className="quick-message-page"
+      data-workspace={tab}
       aria-label="飞书工作台"
     >
       <header className="feishu-workspace-header">
@@ -120,8 +131,9 @@ export function QuickMessagePage() {
           <button type="button" className="feishu-connection-shortcut" onClick={()=>setTab("settings")}>
             {authPending ? "检查连接…" : auth?.connected ? "飞书已连接" : "连接飞书"}
           </button>
+          <div className="feishu-header-voice-slot" ref={setVoiceContainer}>
           {snapshot && (tab === "tasks" || tab === "meetings") && (
-            <FeishuVoiceControls
+            <div className="feishu-voice-entry"><FeishuVoiceControls
               purpose={
                 tab === "tasks"
                   ? "task"
@@ -137,7 +149,9 @@ export function QuickMessagePage() {
                     : "开始语音指令"
               }
             />
+            <VoiceShortcutHint purpose={tab==="tasks"?"task":"calendar"} config={snapshot.config} onOpenSettings={openShortcuts}/></div>
           )}
+          </div>
         </div>
       </header>
       {error && <p role="alert">{error}</p>}
@@ -180,7 +194,7 @@ export function QuickMessagePage() {
               {visited.has("meetings") && <FeishuCalendarWorkspace replies={workspaceReplies(snapshot)} />}
             </TabsContent>
             <TabsContent value="messages" keepMounted>
-              <FeishuMessagesWorkspace snapshot={snapshot} />
+              <FeishuMessagesWorkspace snapshot={snapshot} onOpenShortcuts={openShortcuts} voiceInHeader voiceContainer={voiceContainer} voiceVisible={tab==="messages"}/>
               <p className="quick-message-capability">{FEISHU_EXTERNAL_SEND_NOTICE}</p>
             </TabsContent>
             <TabsContent value="hotwords" keepMounted>
@@ -202,7 +216,7 @@ export function QuickMessagePage() {
                 <summary>消息表达偏好</summary>
                 <MessageStyleSettings value={snapshot.config.feishuMessageStyle ?? ""} onSave={(style) => save({feishuMessageStyle:style})}/>
               </details>
-              <details className="feishu-settings-disclosure">
+              <details className="feishu-settings-disclosure" ref={shortcutsRegion} open={shortcutsOpen} onToggle={event=>setShortcutsOpen(event.currentTarget.open)}>
                 <summary>语音快捷键与功能开关</summary>
                 <div className="quick-message-shortcut">
                   <AgentVoiceShortcut

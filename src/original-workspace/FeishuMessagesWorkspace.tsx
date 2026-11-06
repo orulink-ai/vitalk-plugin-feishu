@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import {createPortal} from "react-dom";
 import { Mic, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -13,6 +14,7 @@ import {
   type FeishuRecipient,
 } from "./FeishuMessagePanel";
 import "./feishu-messages-workspace.css";
+import {VoiceShortcutHint} from "./VoiceShortcutHint";
 
 const statuses = new Set([
   "composing",
@@ -72,9 +74,13 @@ function readDraft(value: unknown): FeishuMessageDraft | null {
 type Props = {
   snapshot: ExperimentsSnapshot;
   onDraftUpdate?: (draft: FeishuMessageDraft | null) => void;
+  onOpenShortcuts?: () => void;
+  voiceContainer?: HTMLElement | null;
+  voiceInHeader?: boolean;
+  voiceVisible?: boolean;
 };
 type Job = "prepare" | "send" | "dismiss" | "voice" | null;
-export function FeishuMessagesWorkspace({ snapshot, onDraftUpdate }: Props) {
+export function FeishuMessagesWorkspace({ snapshot, onDraftUpdate, onOpenShortcuts, voiceContainer, voiceInHeader=false, voiceVisible=true }: Props) {
   const [prompt, setPrompt] = useState("");
   const [draft, setDraft] = useState<FeishuMessageDraft | null>(() => {
     try {
@@ -366,21 +372,20 @@ export function FeishuMessagesWorkspace({ snapshot, onDraftUpdate }: Props) {
   const panelDraft =
     draft &&
     (job === "prepare" ? { ...draft, status: "preparing" as const } : draft);
+  const voiceEntry=<div className="feishu-voice-entry"><Button
+    disabled={busy || (openDraft && !recording)} onClick={()=>void voice()}>
+    {recording?<Square data-icon="inline-start"/>:<Mic data-icon="inline-start"/>}
+    {recording?"结束语音输入":"语音输入"}
+  </Button><VoiceShortcutHint purpose="message" config={snapshot.config} onOpenSettings={onOpenShortcuts}/></div>;
   return (
     <section className="feishu-messages-workspace" aria-label="飞书消息工作区">
+      {voiceInHeader&&voiceContainer&&voiceVisible&&createPortal(voiceEntry,voiceContainer)}
       <header>
         <div>
           <h2>消息</h2>
           <p>先整理草稿，确认对象和正文后发送。</p>
         </div>
-        <Button
-          variant="outline"
-          disabled={busy || (openDraft && !recording)}
-          onClick={() => void voice()}
-        >
-          {recording ? <Square size={14} /> : <Mic size={14} />}{" "}
-          {recording ? "结束语音输入" : "语音输入"}
-        </Button>
+        {!voiceInHeader&&voiceVisible&&voiceEntry}
       </header>
       {!openDraft && (
         <div className="feishu-message-request">

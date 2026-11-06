@@ -23,7 +23,7 @@ it.each(["completed","uncertain"])("keeps task details/source and existing compl
   });
   render(<FeishuTaskWorkspace recipients={[]} replies={[]}/>);
   expect(screen.getByRole("button",{name:/筛选/}).getAttribute("aria-expanded")).toBe("false");
-  fireEvent.click(await screen.findByRole("button",{name:"详情"}));
+  fireEvent.click(await screen.findByRole("button",{name:"查看任务：任务甲"}));
   expect(await screen.findByRole("heading",{name:"任务详情"})).toBeTruthy();
   expect(screen.getAllByText(task.description).length).toBeGreaterThan(0);
   expect(screen.getByText("插件暂不提供任务编辑和删除，请在飞书中操作。")).toBeTruthy();
