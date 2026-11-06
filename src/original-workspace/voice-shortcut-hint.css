@@ -4,6 +4,3 @@ button.feishu-voice-key-hint { cursor: pointer; }
 button.feishu-voice-key-hint:hover { background: var(--muted); color: var(--foreground); }
 button.feishu-voice-key-hint:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 .feishu-voice-key-hint kbd { font: inherit; letter-spacing: .02em; }
-.feishu-shortcut-settings-link { border: 0; background: none; color: var(--muted-foreground); font: inherit; font-size: 12px; padding: 5px; cursor: pointer; border-radius: 4px; }
-.feishu-shortcut-settings-link:hover { background: var(--muted); color: var(--foreground); }
-.feishu-shortcut-settings-link:focus-visible { outline: 2px solid var(--ring); }

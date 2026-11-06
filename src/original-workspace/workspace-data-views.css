@@ -85,7 +85,13 @@
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 12px;
+  padding: 8px 0;
 }
+.feishu-calendar-toolbar .feishu-date-navigation { gap: 6px; }
+.feishu-calendar-toolbar .feishu-date-navigation input { height: 28px; }
+.feishu-calendar-toolbar .feishu-calendar-view-actions { gap: 8px; }
+.feishu-calendar-toolbar [data-slot="toggle-group"] { gap: 0; }
+.feishu-calendar-toolbar [data-slot="toggle-group-item"] { min-width: 32px; }
 .feishu-calendar-view-actions {
   display: flex;
   align-items: center;

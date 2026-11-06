@@ -118,6 +118,7 @@ export function QuickMessagePage() {
     <section
       ref={pageRegion}
       className="quick-message-page"
+      data-workspace={tab}
       aria-label="飞书工作台"
     >
       <header className="feishu-workspace-header">
@@ -127,7 +128,6 @@ export function QuickMessagePage() {
           <p>消息、任务和日程，在这里处理。</p>
         </div>
         <div className="feishu-header-actions">
-          <button type="button" className="feishu-shortcut-settings-link" onClick={openShortcuts}>快捷键</button>
           <button type="button" className="feishu-connection-shortcut" onClick={()=>setTab("settings")}>
             {authPending ? "检查连接…" : auth?.connected ? "飞书已连接" : "连接飞书"}
           </button>

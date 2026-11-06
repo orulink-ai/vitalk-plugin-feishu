@@ -13,6 +13,7 @@ it("keeps all voice actions in the same workspace header and preserves the messa
   render(<QuickMessagePage/>);
   await screen.findByRole("button",{name:"语音输入"});
   const header=screen.getByRole("region",{name:"飞书工作台"}).querySelector(".feishu-workspace-header") as HTMLElement;
+  expect(within(header).queryByRole("button",{name:/^快捷键$/})).toBeNull();
   fireEvent.click(within(header).getByRole("button",{name:"语音输入"}));
   await waitFor(()=>expect(request.mock.calls.some(([r])=>r.action==="messageVoiceToggle")).toBe(true));
   fireEvent.click(screen.getByRole("tab",{name:"任务"}));

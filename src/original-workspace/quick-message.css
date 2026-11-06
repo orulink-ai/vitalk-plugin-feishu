@@ -391,6 +391,18 @@
 .feishu-header-voice-slot:not(:empty) { min-width: 170px; }
 .feishu-header-voice-slot .feishu-voice-entry > button[data-slot="button"], .feishu-header-voice-slot .feishu-voice-actions > button { min-width: 170px; }
 .quick-message-capability { font-size: 12px; line-height: 1.6; color: var(--muted-foreground); margin: 0; }
+
+/* A time calendar owns the remaining viewport; only its time axis scrolls. */
+.quick-message-page[data-workspace="meetings"]:has(.feishu-calendar-workspace[data-time-view="true"]) { overflow: hidden; }
+.quick-message-page[data-workspace="meetings"]:has(.feishu-calendar-workspace[data-time-view="true"]) > [data-slot="tabs"] { flex: 1 1 0; min-height: 0; }
+.quick-message-page[data-workspace="meetings"]:has(.feishu-calendar-workspace[data-time-view="true"]) [data-slot="tabs-content"]:not([hidden]) { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.quick-message-page[data-workspace="meetings"] .feishu-calendar-workspace[data-time-view="true"] { flex: 1 1 0; min-height: 0; overflow: hidden; gap: 10px; }
+.feishu-calendar-workspace[data-time-view="true"] > * { flex-shrink: 0; }
+.feishu-calendar-workspace[data-time-view="true"] .feishu-calendar-surface { display: flex; flex-direction: column; flex: 1 1 0; min-height: 0; }
+.feishu-calendar-workspace[data-time-view="true"] .feishu-time-calendar { display: flex; flex: 1 1 0; min-height: 0; }
+.feishu-calendar-workspace[data-time-view="true"] .feishu-time-scroll { flex: 1 1 0; min-height: 0; max-height: none; }
+.feishu-calendar-workspace[data-time-view="true"] .feishu-execution-disclosure { margin-top: 0; padding-top: 8px; }
+.feishu-calendar-workspace[data-time-view="true"] .feishu-execution-disclosure[open] { max-height: 25vh; overflow-y: auto; }
 .quick-message-enable {
   display: flex;
   align-items: center;

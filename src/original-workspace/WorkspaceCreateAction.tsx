@@ -66,7 +66,7 @@ export function WorkspaceCreateAction({kind,onCreated,disabled=false,className="
     } finally {pending.current=false;}
   }
   return <div className={`feishu-create-action ${className}`}>
-    <Button ref={trigger} type="button" variant="outline" disabled={disabled||busy} aria-expanded={open} aria-controls={`${id}-panel`} onClick={()=>open?close():setOpen(true)}>
+    <Button ref={trigger} type="button" variant="outline" size="sm" disabled={disabled||busy} aria-expanded={open} aria-controls={`${id}-panel`} onClick={()=>open?close():setOpen(true)}>
       <Plus data-icon="inline-start"/>{open?`收起${label}创建`:`创建${label}`}
     </Button>
     {open&&<aside id={`${id}-panel`} role="dialog" aria-modal="false" aria-labelledby={`${id}-title`} className="feishu-create-panel" aria-busy={busy} onKeyDown={event=>{if(event.key==="Escape"){event.stopPropagation();close();}}}>
