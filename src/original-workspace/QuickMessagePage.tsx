@@ -37,6 +37,7 @@ export function QuickMessagePage() {
   const [error, setError] = useState("");
   const [tab, setTab] = useState<FeishuTab>("messages");
   const [shortcutsOpen,setShortcutsOpen]=useState(false);
+  const [voiceContainer,setVoiceContainer]=useState<HTMLDivElement|null>(null);
   const shortcutsRegion=useRef<HTMLDetailsElement>(null);
   function openShortcuts(){setShortcutsOpen(true);setTab("settings");}
   useEffect(()=>{
@@ -130,6 +131,7 @@ export function QuickMessagePage() {
           <button type="button" className="feishu-connection-shortcut" onClick={()=>setTab("settings")}>
             {authPending ? "检查连接…" : auth?.connected ? "飞书已连接" : "连接飞书"}
           </button>
+          <div className="feishu-header-voice-slot" ref={setVoiceContainer}>
           {snapshot && (tab === "tasks" || tab === "meetings") && (
             <div className="feishu-voice-entry"><FeishuVoiceControls
               purpose={
@@ -149,6 +151,7 @@ export function QuickMessagePage() {
             />
             <VoiceShortcutHint purpose={tab==="tasks"?"task":"calendar"} config={snapshot.config} onOpenSettings={openShortcuts}/></div>
           )}
+          </div>
         </div>
       </header>
       {error && <p role="alert">{error}</p>}
@@ -191,7 +194,7 @@ export function QuickMessagePage() {
               {visited.has("meetings") && <FeishuCalendarWorkspace replies={workspaceReplies(snapshot)} />}
             </TabsContent>
             <TabsContent value="messages" keepMounted>
-              <FeishuMessagesWorkspace snapshot={snapshot} onOpenShortcuts={openShortcuts} />
+              <FeishuMessagesWorkspace snapshot={snapshot} onOpenShortcuts={openShortcuts} voiceInHeader voiceContainer={voiceContainer} voiceVisible={tab==="messages"}/>
               <p className="quick-message-capability">{FEISHU_EXTERNAL_SEND_NOTICE}</p>
             </TabsContent>
             <TabsContent value="hotwords" keepMounted>

@@ -208,7 +208,7 @@
 .quick-message-personality header {
   margin-bottom: 16px;
 }
-.quick-message-personality h2 {
+.quick-message-personality h3 {
   margin: 0 0 6px;
   font-size: 16px;
   font-weight: 600;
@@ -369,19 +369,28 @@
   padding: 0;
   background: transparent;
 }
-.quick-message-personality h2 {
-  font-size: 20px;
+.quick-message-personality h3 {
+  font-size: 14px;
 }
 .quick-message-personality > header {
-  margin-bottom: 24px;
+  margin-bottom: 0;
 }
 .quick-message-personality textarea {
-  min-height: 184px;
+  min-height: 100px;
+  max-height: 240px;
   background: var(--background);
 }
 .quick-message-personality .message-style-presets {
-  margin-bottom: 24px;
+  margin: 0;
 }
+.quick-message-personality { display: grid; gap: 12px; max-width: 680px; padding: 16px 0 0; }
+.quick-message-personality header p { margin: 0; }
+.quick-message-personality label { margin: 0; font-size: 12px; color: var(--muted-foreground); }
+.quick-message-personality .quick-message-actions { margin-top: 0; }
+.quick-message-personality > p { margin: 0; }
+.feishu-header-voice-slot:not(:empty) { min-width: 170px; }
+.feishu-header-voice-slot .feishu-voice-entry > button[data-slot="button"], .feishu-header-voice-slot .feishu-voice-actions > button { min-width: 170px; }
+.quick-message-capability { font-size: 12px; line-height: 1.6; color: var(--muted-foreground); margin: 0; }
 .quick-message-enable {
   display: flex;
   align-items: center;

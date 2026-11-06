@@ -1,5 +1,4 @@
 import { useRef, useState } from "react";
-import { SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -57,9 +56,8 @@ export function MessageStyleSettings({
       aria-labelledby="message-style-title"
     >
       <header>
-        <SlidersHorizontal size={20} aria-hidden="true" />
         <div>
-          <h2 id="message-style-title">让消息更像你</h2>
+          <h3 id="message-style-title">表达习惯</h3>
           <p>写下你的表达习惯，生成时结合对象和场景调整语气。</p>
         </div>
       </header>
@@ -76,7 +74,7 @@ export function MessageStyleSettings({
           </Button>
         ))}
       </div>
-      <label htmlFor="message-style-prompt">消息表达偏好（Prompt）</label>
+      <label htmlFor="message-style-prompt">自定义表达偏好</label>
       <Textarea
         id="message-style-prompt"
         value={text}
