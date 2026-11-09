@@ -1,6 +1,6 @@
 {
   "name": "vitalk-plugin-feishu",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "private": true,
   "type": "module",
   "scripts": {
@@ -12,10 +12,11 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
-    "@vitalk/plugin-sdk": "file:vitalk-plugin-sdk-0.4.0.tgz",
+    "@vitalk/plugin-sdk": "file:vitalk-plugin-sdk-0.5.0.tgz",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.67.0",
+    "qrcode": "^1.5.4",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "tailwind-merge": "^3.7.0"
@@ -25,6 +26,7 @@
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
     "@types/node": "^25.0.0",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "jsdom": "^27.0.1",

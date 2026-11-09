@@ -355,3 +355,29 @@ it("retains a cleared native sent receipt until the user explicitly closes it", 
     id: ready.id,
   });
 });
+
+it('recalls a confirmed plugin message and exposes terminal status without retry',async()=>{
+ vi.mocked(experimentsRequest).mockResolvedValue({...ready,status:'recall_unknown',receipt:'om_actual'} as never);
+ render(<FeishuMessagesWorkspace snapshot={snapshot({...ready,status:'sent',receipt:'om_actual'})} />);
+ fireEvent.click(screen.getByRole('button',{name:'撤回消息'}));
+ await waitFor(()=>expect(experimentsRequest).toHaveBeenCalledWith({action:'feishuRecall',id:ready.id,confirmed:true}));
+ await screen.findByText('撤回结果待核实');
+ expect(screen.queryByRole('button',{name:'撤回消息'})).toBeNull();
+});
+
+it('does not restore a recalled message from a stale sent snapshot',async()=>{
+ vi.mocked(experimentsRequest).mockResolvedValue({...ready,status:'recalled',receipt:'om_actual'} as never);
+ const view=render(<FeishuMessagesWorkspace snapshot={snapshot({...ready,status:'sent',receipt:'om_actual'})} />);
+ fireEvent.click(screen.getByRole('button',{name:'撤回消息'}));await screen.findByText('消息已撤回');
+ view.rerender(<FeishuMessagesWorkspace snapshot={snapshot({...ready,status:'sent',receipt:'om_actual'})} />);
+ expect(screen.queryByRole('button',{name:'撤回消息'})).toBeNull();
+});
+it('keeps a proven pre-submit permission failure editable and allows another confirmation',async()=>{
+ vi.mocked(experimentsRequest).mockRejectedValueOnce(Object.assign(Error('图片权限不足，请重新授权'),{code:'message_not_submitted'})).mockResolvedValueOnce({...ready,status:'sent',receipt:'om_retry'} as never);
+ render(<FeishuMessagesWorkspace snapshot={snapshot(ready)} />);
+ fireEvent.click(screen.getByRole('button',{name:'确认发送'}));
+ await waitFor(()=>expect(screen.getByLabelText('发送内容')).toHaveProperty('disabled',false));
+ fireEvent.click(screen.getByRole('button',{name:'确认发送'}));
+ await screen.findByText('消息回执：om_retry');
+ expect(experimentsRequest).toHaveBeenCalledTimes(2);
+});

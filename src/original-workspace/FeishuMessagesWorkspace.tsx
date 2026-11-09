@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import {createPortal} from "react-dom";
 import { Mic, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -13,6 +14,7 @@ import {
   type FeishuRecipient,
 } from "./FeishuMessagePanel";
 import "./feishu-messages-workspace.css";
+import {VoiceShortcutHint} from "./VoiceShortcutHint";
 
 const statuses = new Set([
   "composing",
@@ -21,7 +23,7 @@ const statuses = new Set([
   "sending",
   "sent",
   "failed",
-  "unknown",
+  "unknown", "recalling", "recalled", "recall_unknown",
 ]);
 function readDraft(value: unknown): FeishuMessageDraft | null {
   if (value === null) return null;
@@ -72,9 +74,13 @@ function readDraft(value: unknown): FeishuMessageDraft | null {
 type Props = {
   snapshot: ExperimentsSnapshot;
   onDraftUpdate?: (draft: FeishuMessageDraft | null) => void;
+  onOpenShortcuts?: () => void;
+  voiceContainer?: HTMLElement | null;
+  voiceInHeader?: boolean;
+  voiceVisible?: boolean;
 };
-type Job = "prepare" | "send" | "dismiss" | "voice" | null;
-export function FeishuMessagesWorkspace({ snapshot, onDraftUpdate }: Props) {
+type Job = "prepare" | "send" | "dismiss" | "recall" | "voice" | null;
+export function FeishuMessagesWorkspace({ snapshot, onDraftUpdate, onOpenShortcuts, voiceContainer, voiceInHeader=false, voiceVisible=true }: Props) {
   const [prompt, setPrompt] = useState("");
   const [draft, setDraft] = useState<FeishuMessageDraft | null>(() => {
     try {
@@ -110,11 +116,15 @@ export function FeishuMessagesWorkspace({ snapshot, onDraftUpdate }: Props) {
     if (dismissed.current.has(next.id)) return;
     // A popup or another workspace can submit this ID too. Every observed
     // submission/outcome prevents older ready snapshots from restoring send.
-    if (["sending", "sent", "unknown", "failed"].includes(next.status)) {
+    if (["sending", "sent", "unknown", "failed", "recalling", "recalled", "recall_unknown"].includes(next.status)) {
       attempted.current.add(next.id);
     }
     if (previous?.id === next.id) {
-      if (previous.status === "sent" && next.status !== "sent") return;
+      const recallStates=['recalling','recalled','recall_unknown'];
+      if(recallStates.includes(previous.status) && !recallStates.includes(next.status))return;
+      if(previous.status==='recalled' && next.status!=='recalled')return;
+      if(previous.status==='recall_unknown' && next.status==='recalling')return;
+      if (previous.status === "sent" && next.status !== "sent" && !recallStates.includes(next.status)) return;
       if (
         attempted.current.has(next.id) &&
         ["ready", "preparing", "composing"].includes(next.status)
@@ -280,6 +290,14 @@ export function FeishuMessagesWorkspace({ snapshot, onDraftUpdate }: Props) {
         changed.current?.(draftRef.current);
       }
     } catch (failure) {
+      if (failure instanceof Error && "code" in failure && failure.code === "message_not_submitted") {
+        if (active.current && draftRef.current?.id === frozen.id && draftRef.current.status === "sending") {
+          attempted.current.delete(frozen.id);
+          commit({ ...frozen, status: "ready", error: failure.message }, true);
+          setError(failure.message);
+        }
+        return;
+      }
       if (
         active.current &&
         draftRef.current?.id === frozen.id &&
@@ -299,6 +317,19 @@ export function FeishuMessagesWorkspace({ snapshot, onDraftUpdate }: Props) {
         setJob(null);
       }
     }
+  }
+  async function recall() {
+    const source=draftRef.current;
+    if(locked.current||!source||source.status!=='sent'||!source.receipt)return;
+    locked.current=true;setJob('recall');
+    commit({...source,status:'recalling'});
+    try {
+      const result=readDraft(await experimentsRequest({action:'feishuRecall',id:source.id,confirmed:true}));
+      if(!result||result.id!==source.id||!['recalled','recall_unknown','recalling'].includes(result.status))throw Error('撤回回执未能核验');
+      if(active.current&&draftRef.current?.id===source.id)commit(result,true);
+    } catch {
+      if(active.current&&draftRef.current?.id===source.id)commit({...source,status:'recall_unknown',error:'请在飞书核对撤回结果，不会自动重试。'},true);
+    } finally {if(active.current){locked.current=false;setJob(null);}}
   }
   async function dismiss() {
     const source = draftRef.current;
@@ -366,21 +397,20 @@ export function FeishuMessagesWorkspace({ snapshot, onDraftUpdate }: Props) {
   const panelDraft =
     draft &&
     (job === "prepare" ? { ...draft, status: "preparing" as const } : draft);
+  const voiceEntry=<div className="feishu-voice-entry"><Button
+    disabled={busy || (openDraft && !recording)} onClick={()=>void voice()}>
+    {recording?<Square data-icon="inline-start"/>:<Mic data-icon="inline-start"/>}
+    {recording?"结束语音输入":"语音输入"}
+  </Button><VoiceShortcutHint purpose="message" config={snapshot.config} onOpenSettings={onOpenShortcuts}/></div>;
   return (
     <section className="feishu-messages-workspace" aria-label="飞书消息工作区">
+      {voiceInHeader&&voiceContainer&&voiceVisible&&createPortal(voiceEntry,voiceContainer)}
       <header>
         <div>
           <h2>消息</h2>
           <p>先整理草稿，确认对象和正文后发送。</p>
         </div>
-        <Button
-          variant="outline"
-          disabled={busy || (openDraft && !recording)}
-          onClick={() => void voice()}
-        >
-          {recording ? <Square size={14} /> : <Mic size={14} />}{" "}
-          {recording ? "结束语音输入" : "语音输入"}
-        </Button>
+        {!voiceInHeader&&voiceVisible&&voiceEntry}
       </header>
       {!openDraft && (
         <div className="feishu-message-request">
@@ -427,6 +457,7 @@ export function FeishuMessagesWorkspace({ snapshot, onDraftUpdate }: Props) {
               关闭草稿
             </Button>
           </div>
+          {draft?.status==='sent' && /^om_[A-Za-z0-9_-]+$/.test(draft.receipt??'') && <Button variant="outline" disabled={busy} onClick={()=>void recall()}>撤回消息</Button>}
           <FeishuMessagePanel
             draft={panelDraft}
             recipients={

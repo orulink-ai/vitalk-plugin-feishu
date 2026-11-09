@@ -1,4 +1,7 @@
 /* Data controls share the workspace scale; the timeline owns its own scrolling. */
+.feishu-task-open-title { width: 100%; height: auto; min-width: 0; justify-content: flex-start; text-align: left; padding: 8px 0; white-space: normal; }
+.feishu-task-open-title > span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-weight: 500; line-height: 1.6; overflow-wrap: anywhere; }
+.feishu-task-open-title:hover { color: var(--primary); text-decoration: underline; text-underline-offset: 3px; }
 .feishu-task-filter-panel {
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -82,7 +85,13 @@
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 12px;
+  padding: 8px 0;
 }
+.feishu-calendar-toolbar .feishu-date-navigation { gap: 6px; }
+.feishu-calendar-toolbar .feishu-date-navigation input { height: 28px; }
+.feishu-calendar-toolbar .feishu-calendar-view-actions { gap: 8px; }
+.feishu-calendar-toolbar [data-slot="toggle-group"] { gap: 0; }
+.feishu-calendar-toolbar [data-slot="toggle-group-item"] { min-width: 32px; }
 .feishu-calendar-view-actions {
   display: flex;
   align-items: center;

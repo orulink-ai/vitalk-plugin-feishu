@@ -1,8 +1,8 @@
+import { WorkspaceRecordActions } from "./WorkspaceRecordActions";
 import { useEffect, useId, useRef, useState } from "react";
 import {
   RefreshCw,
   ExternalLink,
-  ChevronDown,
   SlidersHorizontal,
   X,
 } from "lucide-react";
@@ -96,12 +96,12 @@ export function FeishuTaskWorkspace({
   const [loading, setLoading] = useState(false),
     [error, setError] = useState("");
   const [refresh, setRefresh] = useState(0);
+  const [recordNotice,setRecordNotice]=useState("");
   const [selectedTask,setSelectedTask]=useState<FeishuTaskItem|null>(null);
   const [detailError,setDetailError]=useState<{taskId:string;accountId:string;message:string}>();
   const completion = useTaskCompletion(result?.accountId);
   const selectedCompletion = useTaskCompletion(result?.accountId, selectedTask?.id);
   const pending = completion?.pending ? completion.taskId : "";
-  const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const epoch = useRef(0),
     alive = useRef(true);
   useEffect(() => {
@@ -164,6 +164,7 @@ export function FeishuTaskWorkspace({
       if (alive.current && version === epoch.current) setLoading(false);
     }
   }
+  const recordEpoch = epoch.current;
   async function finish(task: FeishuTaskItem) {
     if (completion?.pending || task.completed || !result?.accountId) return;
     if (completionPreventsRetry(taskCompletionFor(result.accountId, task.id))) return;
@@ -268,8 +269,8 @@ export function FeishuTaskWorkspace({
         </div>
       </div>
       <div className="feishu-task-query">
-        <WorkspaceCreateAction kind="task" onCreated={()=>setRefresh(n=>n+1)} />
         <div className="feishu-list-toolbar">
+          <WorkspaceCreateAction kind="task" onCreated={()=>setRefresh(n=>n+1)} />
           <Input
             aria-label="搜索当前已加载任务"
             placeholder="搜索已加载任务"
@@ -515,41 +516,7 @@ export function FeishuTaskWorkspace({
                       />
                     </TableCell>
                     <TableCell>
-                      {t.title.length > 56 ? (
-                        <Button
-                          variant="ghost"
-                          className="feishu-task-title-toggle"
-                          aria-expanded={expanded.has(t.id)}
-                          aria-label={`${expanded.has(t.id) ? "收起" : "展开"}任务标题：${t.title}`}
-                          onClick={() =>
-                            setExpanded((current) => {
-                              const next = new Set(current);
-                              if (next.has(t.id)) next.delete(t.id);
-                              else next.add(t.id);
-                              return next;
-                            })
-                          }
-                        >
-                          <strong
-                            className={`${t.completed ? "feishu-completed" : ""} ${expanded.has(t.id) ? "" : "feishu-task-title-clamped"}`}
-                          >
-                            {t.title}
-                          </strong>
-                          <ChevronDown aria-hidden="true" />
-                        </Button>
-                      ) : (
-                        <strong
-                          className={t.completed ? "feishu-completed" : ""}
-                        >
-                          {t.title || "未命名任务"}
-                        </strong>
-                      )}
-                      {t.description && (
-                        <details>
-                          <summary>任务说明</summary>
-                          <p>{t.description}</p>
-                        </details>
-                      )}
+                      <Button variant="ghost" className="feishu-task-open-title" onClick={()=>setSelectedTask(t)} aria-label={`查看任务：${t.title || "未命名任务"}`}><span className={t.completed?"feishu-completed":""}>{t.title || "未命名任务"}</span></Button>
                     </TableCell>
                     <TableCell>
                       <FeishuTaskAssignees
@@ -617,9 +584,10 @@ export function FeishuTaskWorkspace({
         </>
       )}
       <p className="feishu-workspace-boundary">
-        列表显示当前账号负责的任务，搜索仅覆盖已加载内容。新建任务请使用右上角语音指令。
+        列表同步当前账号负责的任务；搜索范围为已加载内容。可直接创建，也可使用语音指令。
       </p>
       <WorkspaceHistory replies={replies} kind="feishuTask" />
+      {recordNotice&&<p role="status">{recordNotice}</p>}
       <Sheet open={selectedTask!==null} onOpenChange={open=>{if(!open)setSelectedTask(null);}}>
         <SheetContent className="feishu-calendar-detail-sheet">
           <SheetHeader><SheetTitle>任务详情</SheetTitle><SheetDescription>来自飞书任务</SheetDescription></SheetHeader>
@@ -639,7 +607,19 @@ export function FeishuTaskWorkspace({
               setDetailError(undefined);
               void openFeishuUrl(feishuDetailUrl(selectedTask.url)!).catch(()=>setDetailError({taskId:selectedTask.id,accountId:result.accountId,message:"无法打开飞书任务。"}));
             }}><ExternalLink data-icon="inline-start"/>来源：飞书任务</Button>}
-            <p className="text-sm text-muted-foreground">插件暂不提供任务编辑和删除，请在飞书中操作。</p>
+            <WorkspaceRecordActions key={result.accountId+":"+selectedTask.id} kind="task" id={selectedTask.id} accountId={result.accountId}
+              title={selectedTask.title} description={selectedTask.description||""} disabled={!!pending}
+              onUpdated={task=>{
+                if (epoch.current !== recordEpoch) return;
+                setResult(current=>current?.accountId===result.accountId?{...current,items:current.items.map(item=>item.id===task.id?task:item)}:current);
+                setSelectedTask(current=>current?.id===task.id?task:current);
+              }}
+              onDeleted={message=>{
+                if (epoch.current !== recordEpoch) return;
+                setResult(current=>current?.accountId===result.accountId?{...current,items:current.items.filter(item=>item.id!==selectedTask.id)}:current);
+                setSelectedTask(current=>current?.id===selectedTask.id?null:current);
+                setRecordNotice(message);
+              }}/>
           </div>}
         </SheetContent>
       </Sheet>

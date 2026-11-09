@@ -2,11 +2,45 @@
 import {act,cleanup,fireEvent,render,screen,waitFor} from "@testing-library/react";
 import {afterEach,expect,it,vi} from "vitest";
 import {WorkspaceCreateAction} from "./WorkspaceCreateAction";
-const {request,openUrl}=vi.hoisted(()=>({request:vi.fn(),openUrl:vi.fn()}));
-vi.mock("../experiments/client",()=>({experimentsRequest:request}));
+const {request,openUrl,legacyRequest}=vi.hoisted(()=>({request:vi.fn(),openUrl:vi.fn(),legacyRequest:vi.fn()}));
+vi.mock("../workspace-create-service",()=>({createWorkspaceItem:request}));
+vi.mock("../experiments/client",()=>({experimentsRequest:legacyRequest}));
 vi.mock("../client",()=>({openFeishuUrl:openUrl}));
-afterEach(()=>{cleanup();request.mockReset();openUrl.mockReset();vi.restoreAllMocks();});
+afterEach(()=>{cleanup();request.mockReset();openUrl.mockReset();legacyRequest.mockReset();vi.restoreAllMocks();});
+it("opens a named nonmodal composer and preserves its draft after Escape",async()=>{
+  render(<WorkspaceCreateAction kind="task"/>);
+  await draft("task","周五前核对资料");
+  const panel=screen.getByRole("dialog",{name:"创建任务"});
+  expect(panel.getAttribute("aria-modal")).toBe("false");
+  fireEvent.keyDown(panel,{key:"Escape"});
+  expect(screen.queryByRole("dialog")).toBeNull();
+  fireEvent.click(screen.getByRole("button",{name:"创建任务"}));
+  expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("周五前核对资料");
+  expect(request).not.toHaveBeenCalled();
+});
+it("keeps an in-flight composer open on Escape and disables its close action",async()=>{
+  const pending=deferred<typeof taskReply>();request.mockReturnValue(pending.promise);
+  render(<WorkspaceCreateAction kind="task"/>);await draft("task","核对资料");
+  fireEvent.click(screen.getByRole("button",{name:"创建任务"}));
+  const panel=screen.getByRole("dialog",{name:"创建任务"});
+  fireEvent.keyDown(panel,{key:"Escape"});
+  expect(screen.getByRole("dialog")).toBe(panel);
+  expect((screen.getByRole("button",{name:"关闭创建面板"}) as HTMLButtonElement).disabled).toBe(true);
+  await act(async()=>pending.resolve(taskReply));
+  expect(await screen.findByText("任务已创建")).toBeTruthy();
+});
 const taskReply={receipt:{guid:"00000000-0000-4000-8000-000000000001",url:"https://applink.feishu.cn/client/todo/detail?guid=task"},plan:{summary:"核对方案",description:"保留完整数字",recipientQuery:"小琼",due:"2026-11-13"}};
+it("shows confirmed creation while notification is pending and preserves it after a late failure",async()=>{
+ const pending=deferred<typeof taskReply>();request.mockImplementation(input=>{input.onConfirmed({...taskReply,receipt:{...taskReply.receipt,notification:'卡片分享处理中'}});return pending.promise;});
+ const onCreated=vi.fn();render(<WorkspaceCreateAction kind="task" onCreated={onCreated}/>);
+ await draft('task','给我创建核对任务');fireEvent.click(screen.getByRole('button',{name:'创建任务'}));
+ expect(await screen.findByText('任务已创建')).toBeTruthy();expect(screen.getByText('卡片分享处理中')).toBeTruthy();
+ expect((screen.getByRole('button',{name:'关闭创建面板'}) as HTMLButtonElement).disabled).toBe(false);
+ expect(onCreated).toHaveBeenCalledOnce();
+ await act(async()=>pending.reject(Error('notification interrupted')));
+ expect(screen.getByText('任务已创建')).toBeTruthy();expect(screen.queryByText('未取得完整创建结果')).toBeNull();
+ expect(screen.getByText(/后续通知结果未确认/)).toBeTruthy();expect(request).toHaveBeenCalledOnce();expect(onCreated).toHaveBeenCalledOnce();
+});
 function deferred<T>() {let resolve!:(value:T)=>void;let reject!:(reason:unknown)=>void;const promise=new Promise<T>((done,fail)=>{resolve=done;reject=fail;});return {resolve,reject,promise};}
 async function draft(kind:"task"|"calendar",value:string) {
   fireEvent.click(screen.getByRole("button",{name:kind==="task"?"创建任务":"创建日程"}));
@@ -21,7 +55,8 @@ it("submits natural speech unchanged with one UUID, blocks duplicate clicks and 
   expect(submit.getAttribute("type")).toBe("button");
   fireEvent.click(submit);fireEvent.click(submit);
   expect(request).toHaveBeenCalledTimes(1);
-  expect(request).toHaveBeenCalledWith({action:"feishuTaskCreate",prompt:"小琼周五前把方案核对一下，保留完整数字",requestId:expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i)});
+  expect(request).toHaveBeenCalledWith({kind:"task",prompt:"小琼周五前把方案核对一下，保留完整数字",operationId:expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i),onConfirmed:expect.any(Function)});
+  expect(legacyRequest).not.toHaveBeenCalled();
   expect((screen.getByRole("textbox") as HTMLTextAreaElement).disabled).toBe(true);
   await act(async()=>pending.resolve(taskReply));
   expect(await screen.findByText("任务已创建")).toBeTruthy();
@@ -39,7 +74,15 @@ it("shows the actual partial calendar invitation receipt without assuming all gu
   expect(await screen.findByText("日程已创建")).toBeTruthy();
   expect(screen.getByText(/参会邀请未完整确认/)).toBeTruthy();
   expect(screen.getByText(/北京时间/)).toBeTruthy();
-  expect(request.mock.calls[0][0].action).toBe("feishuCalendarCreate");
+  expect(request.mock.calls[0][0].kind).toBe("calendar");
+  expect(legacyRequest).not.toHaveBeenCalled();
+});
+it("shows the confirmed task card result returned by the plugin service",async()=>{
+  request.mockResolvedValue({...taskReply,receipt:{...taskReply.receipt,notification:"任务已创建，已向负责人分享任务卡片。"}});
+  render(<WorkspaceCreateAction kind="task"/>);
+  await draft("task","给小琼核对方案");
+  fireEvent.click(screen.getByRole("button",{name:"创建任务"}));
+  expect(await screen.findByText(/已向负责人分享任务卡片/)).toBeTruthy();
 });
 it("keeps LLM errors local and never retries unknown results or generates another request automatically",async()=>{
   request.mockRejectedValue(Error("会议日期未识别完整，尚未预约"));
@@ -92,7 +135,7 @@ it("uses a fresh ID only for an explicit new creation and ignores an old refresh
   fireEvent.change(screen.getByRole("textbox"),{target:{value:"给小琼创建第二项任务"}});
   fireEvent.click(screen.getByRole("button",{name:"创建任务"}));
   await waitFor(()=>expect(request).toHaveBeenCalledTimes(2));
-  expect(request.mock.calls[0][0].requestId).not.toBe(request.mock.calls[1][0].requestId);
+  expect(request.mock.calls[0][0].operationId).not.toBe(request.mock.calls[1][0].operationId);
   await act(async()=>refresh.reject(Error("旧列表刷新失败")));
   expect(screen.queryByText(/列表刷新未完成/)).toBeNull();
 });

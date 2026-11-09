@@ -31,7 +31,7 @@ export interface FeishuMessageDraft {
     | "sending"
     | "sent"
     | "failed"
-    | "unknown";
+    | "unknown" | "recalling" | "recalled" | "recall_unknown";
   error?: string;
   receipt?: string;
   awaitingRecipient?: boolean;
@@ -71,6 +71,7 @@ const statusLabels: Record<FeishuMessageDraft["status"], string> = {
   ready: "待确认",
   sending: "正在发送，请稍候…",
   sent: "消息已发送",
+  recalling:"正在撤回…", recalled:"消息已撤回", recall_unknown:"撤回结果待核实",
   failed: "发送未完成，请检查提示",
   unknown: "发送结果待核实",
 };
