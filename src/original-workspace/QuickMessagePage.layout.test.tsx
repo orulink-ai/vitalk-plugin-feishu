@@ -71,3 +71,17 @@ it('removes a stale read error when the next refresh succeeds',async()=>{
  fireEvent(window,new Event('feishu-message-draft-ready'));
  await waitFor(()=>expect(screen.queryByText('插件仍有请求正在处理')).toBeNull());
 });
+
+it('does not label partial authorization as fully connected in the header',async()=>{
+ request.mockImplementationOnce(async()=>({connected:true,allPermissionsGranted:false,message:'需补充授权'}));
+ render(<QuickMessagePage/>);
+ const header=screen.getByRole('region',{name:'飞书工作台'}).querySelector('.feishu-workspace-header') as HTMLElement;
+ expect(await within(header).findByText('需补充授权')).toBeTruthy();
+ expect(within(header).queryByText('飞书已连接')).toBeNull();
+});
+it('labels a fully granted account as connected in the header',async()=>{
+ request.mockImplementationOnce(async()=>({connected:true,allPermissionsGranted:true,message:'已连接'}));
+ render(<QuickMessagePage/>);
+ const header=screen.getByRole('region',{name:'飞书工作台'}).querySelector('.feishu-workspace-header') as HTMLElement;
+ expect(await within(header).findByText('飞书已连接')).toBeTruthy();
+});
