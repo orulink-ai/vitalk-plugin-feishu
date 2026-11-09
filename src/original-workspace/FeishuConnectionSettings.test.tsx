@@ -1,3 +1,4 @@
+const registerApplication=vi.hoisted(()=>vi.fn());
 // @vitest-environment jsdom
 import {
   act,
@@ -14,7 +15,7 @@ import { FeishuConnectionSettings } from "./FeishuConnectionSettings";
 const experimentsRequest = vi.hoisted(() => vi.fn<typeof import("../experiments/client").experimentsRequest>());
 
 const openExternalUrl = vi.hoisted(() => vi.fn<(url: string) => Promise<void>>(async () => undefined));
-vi.mock("../client", () => ({ openFeishuUrl: openExternalUrl }));
+vi.mock("../client", () => ({ openFeishuUrl: openExternalUrl, registerFeishuApplication: registerApplication, cancelFeishuAuthorization: vi.fn() }));
 vi.mock("../experiments/client", () => ({ experimentsRequest: (request: import("../experiments/client").ExperimentsRequest) => request.action === "feishuPluginCliStatus" ? Promise.resolve({ installed: true, version: "1.0.98" }) : experimentsRequest(request) }));
 afterEach(() => {
   cleanup();
@@ -98,11 +99,6 @@ it("shows partial catalog, manually updates and saves the chosen parsing model",
     />,
   );
   expect(screen.getByText(/仅同步了部分/)).toBeTruthy();
-  const user = userEvent.setup();
-  await user.click(screen.getByText("高级设置"));
-  await user.click(screen.getByRole("combobox", { name: "对象匹配方式" }));
-  await user.click(await screen.findByRole("option", { name: "JEV 决策模型" }));
-  expect(onModelChange).toHaveBeenCalledWith("jev");
   await screen.findByText("已连接", { selector: "p" });
   fireEvent.click(screen.getByRole("button", { name: "更新通讯录" }));
   await waitFor(() =>
@@ -124,101 +120,13 @@ it("preserves local catalog and shows an update error without claiming synchroni
   fireEvent.click(screen.getByRole("button", { name: "更新通讯录" }));
   expect((await screen.findByRole("alert")).textContent).toContain("权限不足");
 });
-it("runs a synthetic comparison without connection and displays incomplete results honestly", async () => {
-  vi.mocked(experimentsRequest).mockImplementation(async (request) => {
-    if (request.action === "feishuAuthStatus")
-      return { connected: false, message: "尚未连接" } as never;
-    return {
-      executed: true,
-      complete: false,
-      caseCount: 3,
-      summary: {
-        llm: {
-          cases: 3,
-          correct: 2,
-          falseSelections: 1,
-          rejections: 0,
-          failures: 0,
-          sampleAccuracy: 0.67,
-          meanLatencyMs: 320,
-        },
-        jev: {
-          cases: 3,
-          correct: 0,
-          falseSelections: 0,
-          rejections: 0,
-          failures: 3,
-          sampleAccuracy: null,
-          meanLatencyMs: null,
-        },
-      },
-      limitations: ["JEV尚未配置，不能得出比较结论"],
-    } as never;
-  });
-  render(<FeishuConnectionSettings model="llm" onModelChange={vi.fn()} />);
-  await screen.findByText("尚未连接");
-  fireEvent.click(screen.getByRole("button", { name: "比较解析策略" }));
-  await screen.findByText(/对比未完整/);
-  expect(screen.getByText(/合成样例：3/)).toBeTruthy();
-  expect(screen.getByText(/文字模型：正确 2.*误选 1.*320/)).toBeTruthy();
-  expect(screen.getByText(/JEV：正确 0.*误选 0.*未测得/)).toBeTruthy();
-  expect(screen.getByText("JEV尚未配置，不能得出比较结论")).toBeTruthy();
-  expect(experimentsRequest).toHaveBeenCalledWith({ action: "feishuCompare" });
-  expect(experimentsRequest).not.toHaveBeenCalledWith(
-    expect.objectContaining({ action: "feishuSend" }),
-  );
+it("only exposes the plugin LLM strategy and no desktop comparison", async()=>{
+ experimentsRequest.mockResolvedValue({connected:false,message:"未连接"} as never);
+ render(<FeishuConnectionSettings model="llm" onModelChange={vi.fn()}/>);
+ expect(screen.queryByRole("button",{name:"比较解析策略"})).toBeNull();
+ expect(screen.queryByRole("combobox",{name:"对象匹配方式"})).toBeNull();
+ await screen.findByText("未连接",{selector:"p"});
 });
-it("does not label an unexecuted model comparison as successful", async () => {
-  vi.mocked(experimentsRequest).mockImplementation(async (request) =>
-    request.action === "feishuAuthStatus"
-      ? ({ connected: false, message: "未连接" } as never)
-      : ({
-          executed: false,
-          complete: false,
-          caseCount: 0,
-          summary: {
-            llm: {
-              cases: 0,
-              correct: 0,
-              falseSelections: 0,
-              rejections: 0,
-              failures: 0,
-              sampleAccuracy: null,
-              meanLatencyMs: null,
-            },
-            jev: {
-              cases: 0,
-              correct: 0,
-              falseSelections: 0,
-              rejections: 0,
-              failures: 0,
-              sampleAccuracy: null,
-              meanLatencyMs: null,
-            },
-          },
-          limitations: ["文字模型未配置"],
-        } as never),
-  );
-  render(<FeishuConnectionSettings model="llm" onModelChange={vi.fn()} />);
-  fireEvent.click(screen.getByRole("button", { name: "比较解析策略" }));
-  await screen.findByText(/对比尚未执行/);
-  expect(screen.queryByText(/对比完成/)).toBeNull();
-});
-it("shows a comparison request failure without claiming completed results", async () => {
-  vi.mocked(experimentsRequest).mockImplementation(async (request) => {
-    if (request.action === "feishuAuthStatus")
-      return { connected: false, message: "未连接" } as never;
-    throw new Error("模型连接失败");
-  });
-  render(<FeishuConnectionSettings model="llm" onModelChange={vi.fn()} />);
-  expect(screen.getByText(/可能产生正常模型用量/)).toBeTruthy();
-  fireEvent.click(screen.getByRole("button", { name: "比较解析策略" }));
-  expect((await screen.findByRole("alert")).textContent).toContain(
-    "模型连接失败",
-  );
-  expect(screen.queryByLabelText("解析策略对比报告")).toBeNull();
-});
-
 it("declares the external recipient limitation while checking, disconnected and connected", async () => {
   vi.mocked(experimentsRequest).mockResolvedValue({
     connected: false,
@@ -638,5 +546,15 @@ it("keeps advanced matching out of the default view while permission repair stay
   const user = userEvent.setup();
   await user.click(screen.getByText("高级设置"));
   expect(advanced.open).toBe(true);
-  expect(screen.getByRole("combobox", { name: "对象匹配方式" })).toBeTruthy();
+  expect(screen.getByText("文字模型")).toBeTruthy();
+});
+
+it('shows a registration QR while setup is pending and does not offer completion early',async()=>{
+ experimentsRequest.mockResolvedValue({connected:false,message:'未连接'} as never);
+ registerApplication.mockImplementation(async(onUrl)=>{onUrl({stage:'registration',flowId:'registration',verificationUrl:'https://open.feishu.cn/page/cli',qrDataUrl:'data:image/png;base64,test'});return new Promise(()=>{});});
+ render(<FeishuConnectionSettings model="llm" onModelChange={()=>{}}/>);
+ fireEvent.click(await screen.findByRole('button',{name:'首次配置飞书应用'}));
+ expect(await screen.findByText('连接飞书应用')).toBeTruthy();
+ expect(screen.queryByRole('button',{name:'我已完成授权'})).toBeNull();
+ expect(screen.getByRole('button',{name:'取消授权'})).toBeTruthy();
 });

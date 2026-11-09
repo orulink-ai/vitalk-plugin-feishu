@@ -1,15 +1,8 @@
 import { CheckCircle2, Info, MessageSquare, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { openFeishuUrl } from "../client";
+import { openFeishuUrl, registerFeishuApplication, cancelFeishuAuthorization } from "../client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   SettingsSection,
   TranscriptionSettingsCard,
@@ -20,27 +13,20 @@ import {
   type FeishuAuthStatus,
   type FeishuAuthorizationFlow,
   type FeishuCatalog,
-  type FeishuComparisonReport,
 } from "../experiments/client";
 import { FEISHU_EXTERNAL_SEND_NOTICE } from "./sending-capability";
 import "./feishu-connection.css";
 
 type Operation =
-  "check" | "authorize" | "complete" | "sync" | "compare" | "installCli";
+  "register" | "check" | "authorize" | "complete" | "sync" | "installCli";
 type CliStatus = { installed: boolean; version?: string };
-const models = [
-  { value: "llm", label: "文字模型" },
-  { value: "jev", label: "JEV 决策模型" },
-];
 const syncTime = (catalog?: FeishuCatalog) => {
   const time = catalog?.lastSync ?? 0;
   return time > 1e12 ? time : time * 1000;
 };
 
 export function FeishuConnectionSettings({
-  model,
   catalog,
-  onModelChange,
   onStatusChange,
   initialAuth,
 }: {
@@ -50,7 +36,6 @@ export function FeishuConnectionSettings({
   initialAuth?: FeishuAuthStatus;
   onStatusChange?: (status: FeishuAuthStatus | undefined) => void;
 }) {
-  const [comparison, setComparison] = useState<FeishuComparisonReport>();
   const [cli, setCli] = useState<CliStatus>();
   const [auth, setAuth] = useState<FeishuAuthStatus | undefined>(initialAuth);
   const statusCallback = useRef(onStatusChange);
@@ -272,6 +257,15 @@ export function FeishuConnectionSettings({
             </div>
           }
         />
+        {!auth?.connected && !flow && (
+          <details><summary>首次使用飞书</summary>
+            <p>仅在尚未配置飞书应用时使用。已有应用请点击“连接飞书”，保留当前配置。</p>
+            <Button size="sm" disabled={busy || checking} onClick={()=>void perform("register",async()=>{
+              try { setFlow(await registerFeishuApplication(value=>setFlow(value))); }
+              catch(error){setFlow(undefined);throw error;}
+            })}>首次配置飞书应用</Button>
+          </details>
+        )}
         {flow && (
           <div className="feishu-authorization" aria-label="飞书授权">
             {flow.qrDataUrl?.startsWith("data:image/") && (
@@ -283,9 +277,9 @@ export function FeishuConnectionSettings({
               />
             )}
             <div>
-              <h3>完成飞书授权</h3>
+              <h3>{flow.stage === "registration" ? "连接飞书应用" : "完成飞书授权"}</h3>
               <p>
-                在浏览器或扫码完成登录确认后，回到这里确认。若只看到“权限已添加”，请返回原授权页面继续完成设备授权。
+                {flow.stage === "registration" ? "在飞书官方页面完成应用配置，收到回执后会进入账号授权。" : "在浏览器或扫码完成登录确认后，回到这里确认。若只看到“权限已添加”，请返回原授权页面继续完成设备授权。"}
               </p>
               {pending === "complete" && (
                 <p role="status">
@@ -317,7 +311,7 @@ export function FeishuConnectionSettings({
                 ) : (
                   <p role="alert">授权链接无效，请重新连接。</p>
                 )}
-                <Button
+                {flow.stage !== "registration" && <Button
                   size="sm"
                   disabled={busy || !safeUrl}
                   onClick={() =>
@@ -361,7 +355,8 @@ export function FeishuConnectionSettings({
                   {pending === "complete"
                     ? "正在等待授权回执…"
                     : "我已完成授权"}
-                </Button>
+                </Button>}
+                <Button size="sm" variant="outline" onClick={()=>{cancelFeishuAuthorization();setFlow(undefined);}}>取消授权</Button>
               </div>
             </div>
           </div>
@@ -403,37 +398,9 @@ export function FeishuConnectionSettings({
         <div className="feishu-advanced-content">
           <TranscriptionSettingsRow
             label="对象匹配方式"
-            description={
-              model === "llm"
-                ? "使用已配置的文字模型匹配对象，并生成消息正文。"
-                : "JEV 辅助候选排序，文字模型结合称呼与上下文判断对象。"
-            }
-            status={
-              <p className="feishu-catalog-hint">
-                称呼与通讯录作为模型上下文。对象不明确时需先确认。
-              </p>
-            }
-            control={
-              <Select
-                items={models}
-                value={model}
-                disabled={busy}
-                onValueChange={(value) => {
-                  if (value === "llm" || value === "jev") onModelChange(value);
-                }}
-              >
-                <SelectTrigger
-                  className="feishu-connection-model"
-                  aria-label="对象匹配方式"
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="llm">文字模型</SelectItem>
-                  <SelectItem value="jev">JEV 决策模型</SelectItem>
-                </SelectContent>
-              </Select>
-            }
+            description="使用已配置的文字模型，结合称呼、通讯录与上下文理解对象。"
+            status={<p className="feishu-catalog-hint">对象不明确时需先确认。</p>}
+            control={<span>文字模型</span>}
           />
           <div className="feishu-connection-notice" role="note">
             <Info size={16} aria-hidden="true" />
@@ -444,64 +411,7 @@ export function FeishuConnectionSettings({
           )}
         </div>
       </details>
-      <details className="feishu-strategy-comparison">
-        <summary>高级 · 匹配策略测试</summary>
-        <div className="feishu-comparison-content">
-          <p>
-            使用当前文字模型与已配置 JEV
-            运行合成样例，不发送消息。可能产生正常模型用量。
-          </p>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={busy}
-            onClick={() =>
-              void perform("compare", async () => {
-                setComparison(undefined);
-                setComparison(
-                  await experimentsRequest<FeishuComparisonReport>({
-                    action: "feishuCompare",
-                  }),
-                );
-              })
-            }
-          >
-            {pending === "compare" ? "正在比较…" : "比较解析策略"}
-          </Button>
-          {comparison && (
-            <div aria-label="解析策略对比报告">
-              <p role="status">
-                {!comparison.executed
-                  ? "对比尚未执行"
-                  : !comparison.complete
-                    ? "对比未完整，不能据此判断优劣"
-                    : "合成样例对比完成，结果仅适用于这些样例"}
-                ；合成样例：{comparison.caseCount}
-              </p>
-              {(["llm", "jev"] as const).map((name) => {
-                const result = comparison.summary[name];
-                return (
-                  <p key={name}>
-                    {name === "llm" ? "文字模型" : "JEV"}：正确 {result.correct}{" "}
-                    / {result.cases}，误选 {result.falseSelections}，拒绝{" "}
-                    {result.rejections}，失败 {result.failures}；平均耗时{" "}
-                    {result.meanLatencyMs === null
-                      ? "未测得"
-                      : `${Math.round(result.meanLatencyMs)} ms`}
-                    ；样例正确率{" "}
-                    {result.sampleAccuracy === null
-                      ? "未测得"
-                      : `${Math.round(result.sampleAccuracy * 100)}%`}
-                  </p>
-                );
-              })}
-              {comparison.limitations.map((limitation, index) => (
-                <p key={index}>{limitation}</p>
-              ))}
-            </div>
-          )}
-        </div>
-      </details>
+
     </SettingsSection>
   );
 }

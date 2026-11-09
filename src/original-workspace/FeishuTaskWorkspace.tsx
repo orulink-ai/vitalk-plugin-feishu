@@ -1,3 +1,4 @@
+import { WorkspaceRecordActions } from "./WorkspaceRecordActions";
 import { useEffect, useId, useRef, useState } from "react";
 import {
   RefreshCw,
@@ -95,6 +96,7 @@ export function FeishuTaskWorkspace({
   const [loading, setLoading] = useState(false),
     [error, setError] = useState("");
   const [refresh, setRefresh] = useState(0);
+  const [recordNotice,setRecordNotice]=useState("");
   const [selectedTask,setSelectedTask]=useState<FeishuTaskItem|null>(null);
   const [detailError,setDetailError]=useState<{taskId:string;accountId:string;message:string}>();
   const completion = useTaskCompletion(result?.accountId);
@@ -162,6 +164,7 @@ export function FeishuTaskWorkspace({
       if (alive.current && version === epoch.current) setLoading(false);
     }
   }
+  const recordEpoch = epoch.current;
   async function finish(task: FeishuTaskItem) {
     if (completion?.pending || task.completed || !result?.accountId) return;
     if (completionPreventsRetry(taskCompletionFor(result.accountId, task.id))) return;
@@ -584,6 +587,7 @@ export function FeishuTaskWorkspace({
         列表同步当前账号负责的任务；搜索范围为已加载内容。可直接创建，也可使用语音指令。
       </p>
       <WorkspaceHistory replies={replies} kind="feishuTask" />
+      {recordNotice&&<p role="status">{recordNotice}</p>}
       <Sheet open={selectedTask!==null} onOpenChange={open=>{if(!open)setSelectedTask(null);}}>
         <SheetContent className="feishu-calendar-detail-sheet">
           <SheetHeader><SheetTitle>任务详情</SheetTitle><SheetDescription>来自飞书任务</SheetDescription></SheetHeader>
@@ -603,7 +607,19 @@ export function FeishuTaskWorkspace({
               setDetailError(undefined);
               void openFeishuUrl(feishuDetailUrl(selectedTask.url)!).catch(()=>setDetailError({taskId:selectedTask.id,accountId:result.accountId,message:"无法打开飞书任务。"}));
             }}><ExternalLink data-icon="inline-start"/>来源：飞书任务</Button>}
-            <p className="text-sm text-muted-foreground">插件暂不提供任务编辑和删除，请在飞书中操作。</p>
+            <WorkspaceRecordActions key={result.accountId+":"+selectedTask.id} kind="task" id={selectedTask.id} accountId={result.accountId}
+              title={selectedTask.title} description={selectedTask.description||""} disabled={!!pending}
+              onUpdated={task=>{
+                if (epoch.current !== recordEpoch) return;
+                setResult(current=>current?.accountId===result.accountId?{...current,items:current.items.map(item=>item.id===task.id?task:item)}:current);
+                setSelectedTask(current=>current?.id===task.id?task:current);
+              }}
+              onDeleted={message=>{
+                if (epoch.current !== recordEpoch) return;
+                setResult(current=>current?.accountId===result.accountId?{...current,items:current.items.filter(item=>item.id!==selectedTask.id)}:current);
+                setSelectedTask(current=>current?.id===selectedTask.id?null:current);
+                setRecordNotice(message);
+              }}/>
           </div>}
         </SheetContent>
       </Sheet>

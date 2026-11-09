@@ -2,7 +2,7 @@ import {useEffect,useId,useRef,useState} from "react";
 import {ExternalLink,Plus,X} from "lucide-react";
 import {Button} from "@/components/ui/button";
 import {Textarea} from "@/components/ui/textarea";
-import {experimentsRequest} from "../experiments/client";
+import {createWorkspaceItem} from "../workspace-create-service";
 import {openFeishuUrl} from "../client";
 import {feishuDetailUrl} from "./workspace-receipts";
 import "./workspace-create-action.css";
@@ -11,16 +11,16 @@ type Kind="task"|"calendar";
 type TaskPlan={summary:string;description?:string;recipientQuery?:string;due?:string|null};
 type CalendarPlan={summary:string;description?:string;start?:string;end?:string;participantQueries?:string[]};
 export type WorkspaceCreateOutcome=
-  | {kind:"task";receipt:{guid:string;url:string};plan:TaskPlan}
-  | {kind:"calendar";receipt:{eventId:string;calendarId:string;url:string;status?:string;invitationStatus?:string;reason?:string;persistenceWarning?:string};plan:CalendarPlan};
+  | {kind:"task";receipt:{guid:string;url:string;notification?:string};plan:TaskPlan}
+  | {kind:"calendar";receipt:{eventId:string;calendarId:string;url:string;status?:string;invitationStatus?:string;reason?:string;persistenceWarning?:string;notification?:string};plan:CalendarPlan};
 type Props={kind:Kind;onCreated?:(outcome:WorkspaceCreateOutcome)=>void|Promise<void>;disabled?:boolean;className?:string};
 function record(value:unknown):Record<string,unknown> {return value&&typeof value==="object"&&!Array.isArray(value)?value as Record<string,unknown>:{};}
 function string(value:unknown) {return typeof value==="string"?value:"";}
 function outcomeFrom(value:unknown,kind:Kind):WorkspaceCreateOutcome {
   const data=record(value),receipt=record(data.receipt),plan=record(data.plan);
   const common={summary:string(plan.summary),description:string(plan.description)};
-  if(kind==="task"&&string(receipt.guid).trim()) return {kind,receipt:{guid:string(receipt.guid),url:string(receipt.url)},plan:{...common,recipientQuery:string(plan.recipientQuery),due:typeof plan.due==="string"?plan.due:null}};
-  if(kind==="calendar"&&string(receipt.eventId).trim()&&(!receipt.status||["completed","partial"].includes(string(receipt.status)))) return {kind,receipt:{eventId:string(receipt.eventId),calendarId:string(receipt.calendarId),url:string(receipt.url),status:string(receipt.status),invitationStatus:string(receipt.invitationStatus),reason:string(receipt.reason),persistenceWarning:string(receipt.persistenceWarning)},plan:{...common,start:string(plan.start),end:string(plan.end),participantQueries:Array.isArray(plan.participantQueries)?plan.participantQueries.filter((p):p is string=>typeof p==="string"):undefined}};
+  if(kind==="task"&&string(receipt.guid).trim()) return {kind,receipt:{guid:string(receipt.guid),url:string(receipt.url),notification:string(receipt.notification)},plan:{...common,recipientQuery:string(plan.recipientQuery),due:typeof plan.due==="string"?plan.due:null}};
+  if(kind==="calendar"&&string(receipt.eventId).trim()&&(!receipt.status||["completed","partial"].includes(string(receipt.status)))) return {kind,receipt:{eventId:string(receipt.eventId),calendarId:string(receipt.calendarId),url:string(receipt.url),status:string(receipt.status),invitationStatus:string(receipt.invitationStatus),reason:string(receipt.reason),persistenceWarning:string(receipt.persistenceWarning),notification:string(receipt.notification)},plan:{...common,start:string(plan.start),end:string(plan.end),participantQueries:Array.isArray(plan.participantQueries)?plan.participantQueries.filter((p):p is string=>typeof p==="string"):undefined}};
   throw Error("未取得完整的飞书创建回执，结果尚未确认。");
 }
 function requestId() {
@@ -34,11 +34,12 @@ function dateLabel(value:string) {
   const date=new Date(value);
   return Number.isNaN(date.getTime())?value:new Intl.DateTimeFormat("zh-CN",{timeZone:"Asia/Shanghai",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hour12:false}).format(date);
 }
-/** Published host create calls only. A model plan without a native receipt is never success. */
+/** Plugin-owned creation through generic host transport. Success requires a native receipt. */
 export function WorkspaceCreateAction({kind,onCreated,disabled=false,className=""}:Props) {
   const [open,setOpen]=useState(false),[prompt,setPrompt]=useState("");
   const [phase,setPhase]=useState<"draft"|"creating"|"receipt"|"error">("draft");
   const [outcome,setOutcome]=useState<WorkspaceCreateOutcome|null>(null);
+  const [finishing,setFinishing]=useState(false);
   const [error,setError]=useState(""),[linkError,setLinkError]=useState(""),[refreshError,setRefreshError]=useState("");
   const pending=useRef(false),mounted=useRef(true),version=useRef(0);
   const trigger=useRef<HTMLButtonElement>(null);
@@ -46,24 +47,39 @@ export function WorkspaceCreateAction({kind,onCreated,disabled=false,className="
   const id=useId(),label=kind==="task"?"任务":"日程",busy=phase==="creating";
   const text=prompt.trim(),length=[...text].length;
   const url=outcome?feishuDetailUrl(outcome.receipt.url):undefined;
-  const close=()=>{if(pending.current)return;setOpen(false);trigger.current?.focus();};
+  const close=()=>{if(pending.current&&phase!=="receipt")return;setOpen(false);trigger.current?.focus();};
   const freshDraft=()=>{version.current++;setPrompt("");setOutcome(null);setError("");setLinkError("");setRefreshError("");setPhase("draft");};
   async function submit() {
 
     if(pending.current||phase!=="draft"||disabled||!length||length>500)return;
     const attempt=++version.current;
+    let confirmed=false;
     pending.current=true;setPhase("creating");setError("");setLinkError("");setRefreshError("");
     try {
-      const response=await experimentsRequest<unknown>({action:kind==="task"?"feishuTaskCreate":"feishuCalendarCreate",prompt:text,requestId:requestId()});
-      const result=outcomeFrom(response,kind);
-      if(!mounted.current||version.current!==attempt)return;
-      setOutcome(result);setPhase("receipt");
-      // A parent list refresh cannot erase an acknowledged remote creation.
-      const refreshFailed=()=>{if(mounted.current&&version.current===attempt)setRefreshError("创建结果已保留，列表刷新未完成，请手动刷新列表。");};
-      try {void Promise.resolve(onCreated?.(result)).catch(refreshFailed);} catch {refreshFailed();}
+      const show=(value:unknown,updating:boolean)=>{
+        const result=outcomeFrom(value,kind);
+        if(!mounted.current||version.current!==attempt)return;
+        setOutcome(result);setPhase("receipt");setFinishing(updating);
+        if(!confirmed){
+          confirmed=true;
+          // A parent list refresh cannot erase an acknowledged remote creation.
+          const refreshFailed=()=>{if(mounted.current&&version.current===attempt)setRefreshError("创建结果已保留，列表刷新未完成，请手动刷新列表。");};
+          try {void Promise.resolve(onCreated?.(result)).catch(refreshFailed);} catch {refreshFailed();}
+        }
+      };
+      const response=await createWorkspaceItem({kind,prompt:text,operationId:requestId(),onConfirmed:value=>show(value,true)});
+      show(response,false);
     } catch(failure) {
-      if(mounted.current&&version.current===attempt){setError(failure instanceof Error?failure.message:String(failure));setPhase("error");}
-    } finally {pending.current=false;}
+      if(mounted.current&&version.current===attempt){
+        if(confirmed)setOutcome(previous=>{
+          const notification="创建已确认，后续通知结果未确认，请在飞书核对；不会自动重发。";
+          if(previous?.kind==='task')return {...previous,receipt:{...previous.receipt,notification}};
+          if(previous?.kind==='calendar')return {...previous,receipt:{...previous.receipt,notification}};
+          return previous;
+        });
+        else{setError(failure instanceof Error?failure.message:String(failure));setPhase("error");}
+      }
+    } finally {pending.current=false;if(mounted.current&&version.current===attempt)setFinishing(false);}
   }
   return <div className={`feishu-create-action ${className}`}>
     <Button ref={trigger} type="button" variant="outline" size="sm" disabled={disabled||busy} aria-expanded={open} aria-controls={`${id}-panel`} onClick={()=>open?close():setOpen(true)}>
@@ -86,16 +102,18 @@ export function WorkspaceCreateAction({kind,onCreated,disabled=false,className="
           {outcome.kind==="task"?<>
             {outcome.plan.recipientQuery&&<><dt>负责人要求</dt><dd>{outcome.plan.recipientQuery}</dd></>}
             {outcome.plan.due&&<><dt>截止时间</dt><dd>{dateLabel(outcome.plan.due)}{outcome.plan.due.includes("T")?"（北京时间）":""}</dd></>}
+            {outcome.receipt.notification&&<><dt>卡片通知</dt><dd>{outcome.receipt.notification}</dd></>}
           </>:<>
             {outcome.plan.start&&outcome.plan.end&&<><dt>时间</dt><dd>{dateLabel(outcome.plan.start)} 至 {dateLabel(outcome.plan.end)}（北京时间）</dd></>}
             {outcome.plan.participantQueries&&<><dt>参与人要求</dt><dd>{outcome.plan.participantQueries.join("、")||"仅创建人"}</dd></>}
             <dt>邀请回执</dt><dd>{outcome.receipt.reason||"邀请结果未记录，请在飞书核对。"}</dd>
+            {outcome.receipt.notification&&<><dt>卡片通知</dt><dd>{outcome.receipt.notification}</dd></>}
           </>}
         </dl>
         {outcome.kind==="calendar"&&outcome.receipt.persistenceWarning&&<p role="alert">{outcome.receipt.persistenceWarning}</p>}
         <div className="feishu-create-actions">
           {url&&<Button type="button" variant="outline" onClick={()=>{const current=version.current;setLinkError("");void openFeishuUrl(url).catch(()=>{if(mounted.current&&version.current===current)setLinkError("无法打开飞书，请在飞书客户端核对已创建的记录。");});}}><ExternalLink data-icon="inline-start"/>在飞书中查看</Button>}
-          <Button type="button" variant="ghost" onClick={freshDraft}>再创建一项</Button>
+          <Button type="button" variant="ghost" disabled={finishing} onClick={freshDraft}>再创建一项</Button>
         </div>
         {!url&&<p>飞书未返回可打开的链接，请在飞书客户端查看。</p>}
       </>:<>

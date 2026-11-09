@@ -1,3 +1,4 @@
+import { WorkspaceRecordActions } from "./WorkspaceRecordActions";
 import { useEffect, useRef, useState } from "react";
 import {
   RefreshCw,
@@ -48,6 +49,8 @@ export function FeishuCalendarWorkspace({ replies }: { replies: AiReply[] }) {
   const [selected, setSelected] = useState<CalendarItem | null>(null),
     [focusKey, setFocusKey] = useState(0);
   const epoch = useRef(0);
+  const [identity,setIdentity]=useState<{accountId:string;calendarId:string}>();
+  const [recordNotice,setRecordNotice]=useState("");
   const range = validDate(date) ? calendarRange(date, view) : undefined;
   const start = range?.start,
     end = range?.end;
@@ -55,6 +58,7 @@ export function FeishuCalendarWorkspace({ replies }: { replies: AiReply[] }) {
     const version = ++epoch.current;
     let active = true;
     setItems(undefined);
+    setIdentity(undefined);
     setError("");
     setSelected(null);
     if (!start || !end) {
@@ -63,7 +67,7 @@ export function FeishuCalendarWorkspace({ replies }: { replies: AiReply[] }) {
       return;
     }
     setLoading(true);
-    void experimentsRequest<{ items: CalendarItem[] }>({
+    void experimentsRequest<{ items: CalendarItem[]; accountId?:string; calendarId?:string }>({
       action: "feishuCalendarList",
       start,
       end,
@@ -72,6 +76,7 @@ export function FeishuCalendarWorkspace({ replies }: { replies: AiReply[] }) {
         if (!active || version !== epoch.current) return;
         if (!Array.isArray(result.items))
           throw Error("日程列表格式无效，请刷新。");
+        if (result.accountId && result.calendarId) setIdentity({accountId:result.accountId,calendarId:result.calendarId});
         setItems(
           result.items
             .slice()
@@ -105,6 +110,7 @@ export function FeishuCalendarWorkspace({ replies }: { replies: AiReply[] }) {
     setDate(day);
     setView("day");
   }
+  const recordEpoch = epoch.current;
   const selectedReceipt =
     selected &&
     replies.find((r) => r.command?.meeting?.eventId === selected.id)?.command
@@ -315,6 +321,7 @@ export function FeishuCalendarWorkspace({ replies }: { replies: AiReply[] }) {
         </p>
       )}
       <WorkspaceHistory replies={replies} kind="feishuMeeting" />
+      {recordNotice&&<p role="status">{recordNotice}</p>}
       <Sheet
         open={selected !== null}
         onOpenChange={(open) => {
@@ -344,6 +351,7 @@ export function FeishuCalendarWorkspace({ replies }: { replies: AiReply[] }) {
           {selected && (
             <div className="feishu-calendar-detail-body">
               <h3>{selected.title || "未命名日程"}</h3>
+              {selected.description&&<p>{selected.description}</p>}
               <div>
                 <CalendarDays aria-hidden="true" />
                 <p>
@@ -384,7 +392,26 @@ export function FeishuCalendarWorkspace({ replies }: { replies: AiReply[] }) {
                   来源：飞书日程
                 </Button>
               )}
-              <p className="text-sm text-muted-foreground">插件暂不提供日程删除，请在飞书中操作。</p>
+              {identity&&selected.editable!==false&&/^[A-Za-z0-9_-]{1,120}_0$/.test(selected.id)&&
+                <WorkspaceRecordActions key={identity.accountId+":"+identity.calendarId+":"+selected.id}
+                  kind="event" id={selected.id} title={selected.title} {...identity}
+                  onEventUpdated={event=>{
+                    if (epoch.current !== recordEpoch) return;
+                    setItems(current=>current?.map(item=>item.id===event.id?event:item)
+                      .filter(item=>{
+                        const bounds=eventBounds(item);
+                        return item.id!==event.id || !bounds || start===undefined || end===undefined ||
+                          (bounds.start<end && bounds.end>start);
+                      })
+                      .sort((a,b)=>(eventBounds(a)?.start??0)-(eventBounds(b)?.start??0)));
+                    setSelected(current=>current?.id===event.id?event:current);
+                  }}
+                  onDeleted={message=>{
+                    if (epoch.current !== recordEpoch) return;
+                    setItems(current=>current?.filter(item=>item.id!==selected.id));
+                    setSelected(current=>current?.id===selected.id?null:current);
+                    setRecordNotice(message);
+                  }}/>}
             </div>
           )}
         </SheetContent>

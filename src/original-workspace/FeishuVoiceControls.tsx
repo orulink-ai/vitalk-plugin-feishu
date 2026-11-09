@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Mic, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { experimentsRequest, type ExperimentsSnapshot } from "../experiments/client";
+import { experimentsRequest, type VoiceStatus } from "../experiments/client";
 export function FeishuVoiceControls({
   startLabel = "开始语音指令",
   purpose = "message",
@@ -14,15 +14,16 @@ export function FeishuVoiceControls({
   const [error, setError] = useState("");
   useEffect(() => {
     let mounted = true;
+    let timer:number|undefined;
     const refresh = async () => {
       try {
-        const snapshot = await experimentsRequest<ExperimentsSnapshot>({ action: "read" });
-        if (mounted) setActive(snapshot.recording?.mode === "plugin:vitalk-plugin-feishu:" + purpose && snapshot.recording.status === "recording");
+        const snapshot = await experimentsRequest<VoiceStatus>({ action: "voiceStatus" });
+        if (mounted) setActive(snapshot.actionId === purpose && snapshot.status === "recording");
       } catch { /* The action error is shown when the user clicks. */ }
+      finally { if(mounted) timer=window.setTimeout(()=>void refresh(),1000); }
     };
     void refresh();
-    const timer = window.setInterval(() => void refresh(), 1000);
-    return () => { mounted = false; window.clearInterval(timer); };
+    return () => { mounted = false; window.clearTimeout(timer); };
   }, [purpose]);
   async function toggle() {
     if (pending) return;
@@ -30,8 +31,8 @@ export function FeishuVoiceControls({
     setError("");
     try {
       await experimentsRequest({ action: "voiceCommandToggle", purpose });
-      const snapshot = await experimentsRequest<ExperimentsSnapshot>({ action: "read" });
-      setActive(snapshot.recording?.mode === "plugin:vitalk-plugin-feishu:" + purpose && snapshot.recording.status === "recording");
+      const snapshot = await experimentsRequest<VoiceStatus>({ action: "voiceStatus" });
+      setActive(snapshot.actionId === purpose && snapshot.status === "recording");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {

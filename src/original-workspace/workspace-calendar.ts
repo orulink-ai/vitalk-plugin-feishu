@@ -8,6 +8,8 @@ export type EventTime = {
 export type CalendarItem = {
   id: string;
   title: string;
+  description?: string;
+  editable?: boolean;
   start: EventTime;
   end: EventTime;
   url: string;

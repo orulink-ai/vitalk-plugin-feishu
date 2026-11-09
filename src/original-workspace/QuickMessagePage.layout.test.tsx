@@ -50,3 +50,24 @@ it("keeps an unfinished task request when moving between task and calendar work"
   expect(screen.getByLabelText("任务要求")).toHaveProperty("value","为我整理明天的方案");
   expect(request.mock.calls.some(([r])=>r.action==="feishuTaskCreate")).toBe(false);
 });
+it('does not overlap slow page refreshes and clears recovered read failures',async()=>{
+ const {act}=await import('@testing-library/react');
+ vi.useFakeTimers();
+ try{
+  let finish!:(value:any)=>void;
+  request.mockImplementationOnce(async()=>({connected:true,message:'已连接'}));
+  request.mockImplementationOnce(()=>new Promise(resolve=>{finish=resolve;}));
+  render(<QuickMessagePage/>);
+  await act(async()=>{await vi.advanceTimersByTimeAsync(12000);});
+  expect(request.mock.calls.filter(([r])=>r.action==='read')).toHaveLength(1);
+  await act(async()=>{finish({config:{},feishuCatalog:{recipients:[],partial:true,lastSync:null}});});
+ }finally{cleanup();vi.useRealTimers();}
+});
+it('removes a stale read error when the next refresh succeeds',async()=>{
+ request.mockImplementationOnce(async()=>({connected:true,message:'已连接'}));
+ request.mockRejectedValueOnce(Error('插件仍有请求正在处理'));
+ render(<QuickMessagePage/>);
+ expect(await screen.findByRole('alert')).toHaveProperty('textContent','插件仍有请求正在处理');
+ fireEvent(window,new Event('feishu-message-draft-ready'));
+ await waitFor(()=>expect(screen.queryByText('插件仍有请求正在处理')).toBeNull());
+});
