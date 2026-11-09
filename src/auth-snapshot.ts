@@ -1,5 +1,5 @@
 const MESSAGE_SCOPES=['contact:user:search','contact:user.base:readonly','contact:contact.base:readonly','im:chat:read','im:message.send_as_user','im:message','im:resource'];
-const CALENDAR_SCOPES=['calendar:calendar.calendar:readonly','calendar:calendar.event:create','calendar:calendar.event:update','calendar:calendar.event:delete','calendar:calendar.free_busy:read','calendar:calendar.event:read'];
+const CALENDAR_SCOPES=['calendar:calendar:read','calendar:calendar.event:create','calendar:calendar.event:update','calendar:calendar.event:delete','calendar:calendar.free_busy:read','calendar:calendar.event:read'];
 export const AUTH_SCOPES=[...MESSAGE_SCOPES,'task:task:write',...CALENDAR_SCOPES];
 export function authSnapshot(result:unknown){
  const raw=result as {exitCode?:number;stdout?:string};

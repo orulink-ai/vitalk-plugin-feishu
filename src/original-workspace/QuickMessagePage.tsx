@@ -146,7 +146,7 @@ export function QuickMessagePage() {
         </div>
         <div className="feishu-header-actions">
           <button type="button" className="feishu-connection-shortcut" onClick={()=>setTab("settings")}>
-            {authPending ? "检查连接…" : auth?.connected ? "飞书已连接" : "连接飞书"}
+            {authPending ? "检查连接…" : auth?.allPermissionsGranted ? "飞书已连接" : auth?.connected || auth?.taskConnected || auth?.calendarConnected ? "需补充授权" : "连接飞书"}
           </button>
           <div className="feishu-header-voice-slot" ref={setVoiceContainer}>
           {snapshot && (tab === "tasks" || tab === "meetings") && (

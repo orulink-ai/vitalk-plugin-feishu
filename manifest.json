@@ -1,14 +1,12 @@
 {
   "id": "vitalk-plugin-feishu",
   "name": "飞书",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "sdkVersion": 1,
-  "description": "发送飞书消息、管理任务与日程，支持联系人称呼和账号授权。",
+  "description": "用语音发送飞书消息、创建和管理任务与日程。支持联系人称呼、消息确认和飞书详情跳转。",
   "permissions": [
     "external.open",
     "feishu.messages",
-    "feishu.tasks",
-    "feishu.calendar",
     "native.execute",
     "ai.generate",
     "storage",
@@ -24,32 +22,32 @@
       "version": "1.0.98",
       "platforms": {
         "windows-x86_64": {
-          "url": "https://github.com/orulink-ai/vitalk-plugin-feishu/releases/download/v0.1.6/lark-cli-1.0.98-windows-x86_64.exe",
+          "url": "https://github.com/orulink-ai/vitalk-plugin-feishu/releases/download/v0.1.7/lark-cli-1.0.98-windows-x86_64.exe",
           "sha256": "0db306d22517dd843b598200057646942cec32b17f3b767ede984b6f167ea429",
           "executable": "lark-cli.exe"
         },
         "windows-aarch64": {
-          "url": "https://github.com/orulink-ai/vitalk-plugin-feishu/releases/download/v0.1.6/lark-cli-1.0.98-windows-aarch64.exe",
+          "url": "https://github.com/orulink-ai/vitalk-plugin-feishu/releases/download/v0.1.7/lark-cli-1.0.98-windows-aarch64.exe",
           "sha256": "26b05a7cced7acdf8cd570f902fef39d88d02c7bfdfbf1e5406d83bc3fd1c5d6",
           "executable": "lark-cli.exe"
         },
         "darwin-x86_64": {
-          "url": "https://github.com/orulink-ai/vitalk-plugin-feishu/releases/download/v0.1.6/lark-cli-1.0.98-darwin-x86_64",
+          "url": "https://github.com/orulink-ai/vitalk-plugin-feishu/releases/download/v0.1.7/lark-cli-1.0.98-darwin-x86_64",
           "sha256": "015dc76a3896796b76edd06300929ab2d2ead9a32311ce1fa82c2eca01238ada",
           "executable": "lark-cli"
         },
         "darwin-aarch64": {
-          "url": "https://github.com/orulink-ai/vitalk-plugin-feishu/releases/download/v0.1.6/lark-cli-1.0.98-darwin-aarch64",
+          "url": "https://github.com/orulink-ai/vitalk-plugin-feishu/releases/download/v0.1.7/lark-cli-1.0.98-darwin-aarch64",
           "sha256": "558a4b3db4beb63ab71f2d2dbc42506846535bc1276f707764ff94809e8441a0",
           "executable": "lark-cli"
         },
         "linux-x86_64": {
-          "url": "https://github.com/orulink-ai/vitalk-plugin-feishu/releases/download/v0.1.6/lark-cli-1.0.98-linux-x86_64",
+          "url": "https://github.com/orulink-ai/vitalk-plugin-feishu/releases/download/v0.1.7/lark-cli-1.0.98-linux-x86_64",
           "sha256": "4e4d338f98478a1fe0e974529c82c1df7682b003fd9591d33c2583bcaa158b97",
           "executable": "lark-cli"
         },
         "linux-aarch64": {
-          "url": "https://github.com/orulink-ai/vitalk-plugin-feishu/releases/download/v0.1.6/lark-cli-1.0.98-linux-aarch64",
+          "url": "https://github.com/orulink-ai/vitalk-plugin-feishu/releases/download/v0.1.7/lark-cli-1.0.98-linux-aarch64",
           "sha256": "bac2767fbeede1b4199cce51e2c5f7d75f201447a3fa69485dc55c56e06eaaf8",
           "executable": "lark-cli"
         }
