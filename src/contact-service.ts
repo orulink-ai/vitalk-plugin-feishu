@@ -114,14 +114,32 @@ export async function syncContacts(cli:Cli,operationId:string,options:SyncOption
   }else if(!options.peopleOnly&&session.chat_mode==='group'&&typeof session.chat_id==='string'&&/^oc_[A-Za-z0-9_]+$/.test(session.chat_id)) chats.set(session.chat_id,{id:session.chat_id,name,kind:'chat',active:false,external:true});
  }
  const eligible=await qualify(cli,candidates,operationId,options);
- for(const chat of chats.values()){
+ const groups=[...chats.values()];let next=0;
+ // These are independent read-only lookups. Limit concurrent CLI processes,
+ // retain catalog order, and require the same positive identity evidence.
+ await Promise.all(Array.from({length:Math.min(4,groups.length)},async()=>{
+ while(next<groups.length){
+  const chat=groups[next++];
   try{
    const detail=data(await cli(['im','chats','get','--chat-id',chat.id,...suffix],operationId));
    chat.active=detail.chat_status==='normal' && detail.chat_mode==='group';
    chat.external=detail.external!==false;
   }catch{ /* Visible but unverifiable groups remain ineligible, never default internal. */ }
-  if(!chat.active || chat.external)eligible.unverifiedIds.push(chat.id);
  }
+ }));
+ for(const chat of groups)if(!chat.active || chat.external)eligible.unverifiedIds.push(chat.id);
  return {...eligible,chats:[...chats.values()],scope:'visible',companyComplete:false};
 }
 
+
+/** Revalidate one selected object without enumerating unrelated contacts or groups. */
+export async function readMessageRecipient(cli:Cli,selected:import('./message-intent').MessageRecipient,operationId:string):Promise<import('./message-intent').MessageRecipient|undefined>{
+ if(selected.kind==='person'){
+  const result=await qualify(cli,[],operationId,{cached:[selected]});
+  const person=result.people.find(p=>p.id===selected.id);
+  return person?{...person,kind:'person'}:undefined;
+ }
+ if(!/^oc_[A-Za-z0-9_]+$/.test(selected.id))return undefined;
+ const detail=data(await cli(['im','chats','get','--chat-id',selected.id,...suffix],operationId));
+ return {...selected,name:text(detail.name)||selected.name,active:detail.chat_status==='normal'&&detail.chat_mode==='group',external:detail.external!==false};
+}

@@ -88,7 +88,7 @@ it('publishes and records a confirmed calendar before waiting for invitations',a
  expect(confirmed).toHaveBeenCalledWith(expect.objectContaining({receipt:expect.objectContaining({eventId:'event_1',invitationStatus:'pending'}),plan:expect.objectContaining({participantQueries:['小冰']})}));
  expect(appendHistory).toHaveBeenCalledWith(expect.objectContaining({id:operationId,command:expect.objectContaining({meeting:expect.objectContaining({eventId:'event_1'})})}),'ou_self');
  finish(output({ok:true,data:{attendees:[]}}));await work;
- expect(nativeCalls().filter(call=>call.args[1]==='events')).toHaveLength(1);
+ expect(nativeCalls().filter(call=>call.args[1]==='events'&&call.args[2]==='create')).toHaveLength(1);
 });
 const nativeCalls=()=>request.mock.calls.filter(([method])=>method==='native.execute').map(([,params])=>params);
 
@@ -163,7 +163,7 @@ it('keeps a real event receipt when writing the execution history fails',async()
     })},
   }),'ou_self');
   expect(result).toMatchObject({receipt:{eventId:'event_1',notification:expect.stringContaining('执行记录保存失败')}});
-  expect(nativeCalls().filter(call=>call.args[1]==='events')).toHaveLength(1);
+  expect(nativeCalls().filter(call=>call.args[1]==='events'&&call.args[2]==='create')).toHaveLength(1);
 });
 
 it.each(['task','calendar'] as const)('resolves a visible %s contact with no previous private chat',async kind=>{

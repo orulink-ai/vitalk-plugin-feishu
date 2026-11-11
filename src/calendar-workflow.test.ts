@@ -75,7 +75,8 @@ it('creates a personal calendar event directly from natural language',async()=>{
   expect(deps.model.mock.calls[0][0]).toMatchObject({source:input.source,referenceTime:input.referenceTime,mode:'calendar'});
   expect(deps.model).toHaveBeenCalledTimes(2);
   expect(deps.rosterRequest).not.toHaveBeenCalled();
-  expect(deps.cli.mock.calls.map(([args])=>args[1])).toEqual(['calendars','events']);
+  expect(deps.cli.mock.calls.map(([args])=>args[1])).toEqual(['calendars','events','events']);
+  expect(deps.cli.mock.calls.filter(([args])=>args[1]==='events').map(([args])=>args[2])).toEqual(['create','get']);
 });
 
 it('uses only eligible named contacts and passes their exact IDs to the invite service',async()=>{
@@ -157,7 +158,8 @@ it('preserves an already created event when a fresh invite authorization check f
     .mockResolvedValue({accountId:'ou_self',scopes:[]});
   const result=await runCalendarCreation({...input,source:'明天下午三点跟小冰对齐半小时'},deps);
   expect(result.receipt).toMatchObject({eventId:'event_1',status:'partial',invitationStatus:'cancelled'});
-  expect(deps.cli.mock.calls.map(([args])=>args[1])).toEqual(['calendars','freebusys','events']);
+  expect(deps.cli.mock.calls.map(([args])=>args[1])).toEqual(['calendars','freebusys','events','events']);
+  expect(deps.cli.mock.calls.filter(([args])=>args[1]==='events').map(([args])=>args[2])).toEqual(['create','get']);
 });
 
 it('checks cancellation after the live account read and before submitting creation',async()=>{

@@ -1,12 +1,20 @@
 import {expect,it,vi} from 'vitest';
 import {createMessageWorkflow,type MessageDraft} from './message-workflow';
-function setup(){
+function setup(readRecipient?: (id:string)=>Promise<import('./message-intent').MessageRecipient|undefined>){
  const rows=new Map<string,MessageDraft>();const cli=vi.fn().mockResolvedValue({message_id:'om_sent'});
  const readAccount=vi.fn().mockResolvedValue({accountId:'ou_me',scopes:['im:message.send_as_user','im:message']});
  const readRecipients=vi.fn().mockResolvedValue([{id:'ou_bing',name:'小冰',aliases:[],kind:'person',active:true,external:false}]);
- const workflow=createMessageWorkflow({cli,readAccount,readRecipients,model:vi.fn().mockResolvedValue({action:'send',recipientId:'ou_bing',content:'带电脑来找我'}),store:{read:async id=>rows.get(id),write:async d=>{rows.set(d.id,structuredClone(d));}}});
+ const workflow=createMessageWorkflow({cli,readAccount,readRecipients,readRecipient,model:vi.fn().mockResolvedValue({action:'send',recipientId:'ou_bing',content:'带电脑来找我'}),store:{read:async id=>rows.get(id),write:async d=>{rows.set(d.id,structuredClone(d));}}});
  return {workflow,cli,rows,readAccount,readRecipients};
 }
+it('confirms final edits with one recipient refresh and never resends on retry',async()=>{
+ const {workflow,cli,readRecipients}=setup();const draft=await workflow.prepare('发消息','');
+ readRecipients.mockClear();readRecipients.mockResolvedValue([{id:'ou_other',name:'同事',aliases:[],kind:'person',active:true,external:false}]);
+ const result=await workflow.confirm(draft.id,{recipientId:'ou_other',content:'最终确认的正文'});
+ expect(result.status).toBe('sent');expect(result.recipient?.id).toBe('ou_other');expect(result.content).toBe('最终确认的正文');
+ expect(readRecipients).toHaveBeenCalledTimes(1);expect(cli.mock.calls[0][0]).toContain('ou_other');expect(cli.mock.calls[0][0]).toContain('最终确认的正文');
+ expect(await workflow.confirm(draft.id,{content:'重复点击的新正文'})).toEqual(result);expect(cli).toHaveBeenCalledTimes(1);expect(readRecipients).toHaveBeenCalledTimes(1);
+});
 it('prepares without sending, then sends once only after explicit confirmation',async()=>{
  const {workflow,cli}=setup();const draft=await workflow.prepare('让小冰带电脑来','');expect(draft.status).toBe('ready');expect(cli).not.toHaveBeenCalled();
  const result=await workflow.confirm(draft.id);expect(result.status).toBe('sent');expect(cli).toHaveBeenCalledTimes(1);
@@ -59,4 +67,22 @@ it('keeps image draft editable when resource permission is missing before send',
  expect(rows.get(draft.id)?.status).toBe('ready');expect(cli).not.toHaveBeenCalled();
  await workflow.edit(draft.id,{content:'仅文字',attachments:[]});
  expect((await workflow.confirm(draft.id)).status).toBe('sent');
+});
+it('uses cached draft candidates but revalidates a recipient before sending',async()=>{
+ const rows=new Map<string,MessageDraft>();const cli=vi.fn();
+ const readRecipients=vi.fn().mockResolvedValue([]);
+ const readDraftRecipients=vi.fn().mockResolvedValue([{id:'ou_bing',name:'小冰',aliases:[],kind:'person',active:true,external:false}]);
+ const workflow=createMessageWorkflow({cli,readAccount:async()=>({accountId:'ou_me',scopes:['im:message.send_as_user']}),readRecipients,readDraftRecipients,model:async()=>({action:'send',recipientId:'ou_bing',content:'带电脑来找我'}),store:{read:async id=>rows.get(id),write:async d=>{rows.set(d.id,structuredClone(d));}}});
+ const draft=await workflow.prepare('让小冰带电脑来','');
+ expect(draft.recipient?.id).toBe('ou_bing');expect(readDraftRecipients).toHaveBeenCalledTimes(1);expect(readRecipients).not.toHaveBeenCalled();
+ await expect(workflow.confirm(draft.id)).rejects.toThrow('对象');expect(readRecipients).toHaveBeenCalledTimes(1);expect(cli).not.toHaveBeenCalled();
+});
+
+it('checks only the selected recipient when confirming a cached draft',async()=>{
+ const readRecipient=vi.fn().mockResolvedValue({id:'ou_bing',name:'小冰',aliases:[],kind:'person',active:true,external:false});
+ const {workflow,readRecipients,cli}=setup(readRecipient);const draft=await workflow.prepare('发消息','');readRecipients.mockClear();
+ expect((await workflow.confirm(draft.id)).status).toBe('sent');expect(readRecipient).toHaveBeenCalledWith('ou_bing');expect(readRecipients).not.toHaveBeenCalled();expect(cli).toHaveBeenCalledTimes(1);
+});
+it.each([undefined,{id:'ou_bing',name:'小冰',aliases:[],kind:'person',active:false,external:false},{id:'ou_bing',name:'小冰',aliases:[],kind:'person',active:true,external:true}])('rejects unavailable selected recipients without sending',async recipient=>{
+ const {workflow,cli}=setup(vi.fn().mockResolvedValue(recipient));const draft=await workflow.prepare('发消息','');await expect(workflow.confirm(draft.id)).rejects.toThrow('消息对象已不可用');expect(cli).not.toHaveBeenCalled();
 });

@@ -1,4 +1,5 @@
 import { MessageStyleSettings } from "./MessageStyleSettings";
+import {openPluginHistory} from '../plugin-history-dialog';
 import { RecipientMemoryPanel } from "./RecipientMemoryPanel";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -76,11 +77,11 @@ export function QuickMessagePage() {
   const liveReplies = useRef(new Map<string, AiReply>());
   useEffect(() => {
     let active = true;
-    let timer: number | undefined;
+
     let inflight: Promise<void> | undefined;
     const refresh = () => {
       if (inflight) return inflight;
-      window.clearTimeout(timer);
+
       inflight = experimentsRequest<ExperimentsSnapshot>({ action: "read" })
         .then((s) => {
           if (active) {
@@ -97,20 +98,22 @@ export function QuickMessagePage() {
             );
         }).finally(() => {
           inflight = undefined;
-          if (active) timer = window.setTimeout(() => void refresh(), 3000);
+
         });
       return inflight;
     };
     const onWorkspaceChanged=()=>{void refresh();};
     const onDraft=()=>{setTab("messages");void refresh();};
     const onVoiceError=(event:Event)=>setError((event as CustomEvent<string>).detail);
+    window.addEventListener("focus",onWorkspaceChanged);
     window.addEventListener("feishu-workspace-changed",onWorkspaceChanged);
     window.addEventListener("feishu-message-draft-ready",onDraft);
     window.addEventListener("feishu-voice-error",onVoiceError);
     void refresh();
     return () => {
       active = false;
-      window.clearTimeout(timer);
+
+      window.removeEventListener("focus",onWorkspaceChanged);
       window.removeEventListener("feishu-workspace-changed",onWorkspaceChanged);
       window.removeEventListener("feishu-message-draft-ready",onDraft);
       window.removeEventListener("feishu-voice-error",onVoiceError);
@@ -181,6 +184,7 @@ export function QuickMessagePage() {
           <Tabs
             value={tab}
             onValueChange={(value) => {
+              if(value==='overview'){void openPluginHistory().catch(error=>setError(String(error instanceof Error?error.message:error)));return;}
               setTab(String(value) as FeishuTab);
               setVisited(current=>new Set([...current,String(value) as FeishuTab]));
               pageRegion.current?.scrollTo?.({ top: 0 });

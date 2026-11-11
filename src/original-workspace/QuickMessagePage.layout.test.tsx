@@ -85,3 +85,14 @@ it('labels a fully granted account as connected in the header',async()=>{
  const header=screen.getByRole('region',{name:'飞书工作台'}).querySelector('.feishu-workspace-header') as HTMLElement;
  expect(await within(header).findByText('飞书已连接')).toBeTruthy();
 });
+it('refreshes on workspace changes without repeatedly checking an idle page',async()=>{
+ const {act}=await import('@testing-library/react');
+ vi.useFakeTimers();
+ try{
+  render(<QuickMessagePage/>);
+  await act(async()=>{await vi.advanceTimersByTimeAsync(12000);});
+  expect(request.mock.calls.filter(([r])=>r.action==='read')).toHaveLength(1);
+  await act(async()=>{window.dispatchEvent(new Event('feishu-workspace-changed'));});
+  expect(request.mock.calls.filter(([r])=>r.action==='read')).toHaveLength(2);
+ }finally{cleanup();vi.useRealTimers();}
+});

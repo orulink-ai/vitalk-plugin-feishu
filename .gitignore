@@ -1,3 +1,4 @@
 node_modules/
 dist/
 .vitalk-dev/
+native/message-dialog/vendor/

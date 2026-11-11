@@ -1,3 +1,4 @@
+import { packageMessageDialog } from './package-message-dialog.mjs';
 import { build } from 'vite';
 import { createHash } from 'node:crypto';
 import { readFile, mkdir, writeFile } from 'node:fs/promises';
@@ -6,6 +7,8 @@ import { resolve, join } from 'node:path';
 
 const root = fileURLToPath(new URL('.', import.meta.url));
 const manifest = JSON.parse(await readFile(join(root, 'manifest.json'), 'utf8'));
+const directory = resolve(process.argv[2] || join(root,'dist'));
+await packageMessageDialog(root, directory, manifest);
 const bundle = await build({root,configFile:join(root,'vite.config.ts'),build:{write:false,minify:true}});
 const files = Array.isArray(bundle) ? bundle.flatMap(x => x.output) : bundle.output;
 const script = files.filter(x => x.type === 'chunk').map(x => x.code).join('\n').replace(/<\/script/gi,'<\\/script');
@@ -15,7 +18,6 @@ const html = '<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><met
 const pkg = {format:'vitalk-plugin/v1',manifest,html};
 const bytes = Buffer.from(JSON.stringify(pkg,null,2)+'\n');
 if(bytes.length>2_000_000) throw Error('插件包超过 2 MB');
-const directory = resolve(process.argv[2] || join(root,'dist'));
 await mkdir(directory,{recursive:true});
 const path = join(directory,'vitalk-plugin-feishu.vitalk-plugin.json');
 const sha256 = createHash('sha256').update(bytes).digest('hex');

@@ -4,7 +4,7 @@ import {prepareMessage,eligibleMessageRecipient,type MessageRecipient,type Messa
 import type {CliAuthStatus} from './cli-auth';
 import type {Cli} from './task-service';
 export type MessageDraft={id:string;accountId:string;prompt:string;recipient?:MessageRecipient;awaitingRecipient?:boolean;recipientQuery?:string;recipientCandidates?:MessageRecipient[];content:string;status:'ready'|'sending'|'sent'|'unknown'|'cancelled'|'recalling'|'recalled'|'recall_unknown';messageId?:string;attachments?:FeishuMessageAttachment[]};
-type Dependencies={contentArgs?:(draft:MessageDraft,check:()=>Promise<void>)=>Promise<string[]>;cli:Cli;readAccount:()=>Promise<CliAuthStatus>;readRecipients:()=>Promise<MessageRecipient[]>;model:MessageModel;store:{read:(id:string)=>Promise<MessageDraft|undefined>;write:(draft:MessageDraft)=>Promise<void>}};
+type Dependencies={readRecipient?:(id:string)=>Promise<MessageRecipient|undefined>;readDraftRecipients?:()=>Promise<MessageRecipient[]>;contentArgs?:(draft:MessageDraft,check:()=>Promise<void>)=>Promise<string[]>;cli:Cli;readAccount:()=>Promise<CliAuthStatus>;readRecipients:()=>Promise<MessageRecipient[]>;model:MessageModel;store:{read:(id:string)=>Promise<MessageDraft|undefined>;write:(draft:MessageDraft)=>Promise<void>}};
 /** Store must durably save the pre-I/O claim. A restarted process must keep
  * sending/unknown claims and never turn them back into ready drafts. */
 export function createMessageWorkflow(deps:Dependencies){
@@ -25,7 +25,7 @@ export function createMessageWorkflow(deps:Dependencies){
   async prepare(source:string,preference:string,attachments:FeishuMessageAttachment[]=[]){
    attachments=validateMessageAttachments(attachments);
    const account=await deps.readAccount();grant(account);
-   const plan=await prepareMessage(source,await deps.readRecipients(),deps.model,preference);
+   const plan=await prepareMessage(source,await (deps.readDraftRecipients??deps.readRecipients)(),deps.model,preference);
    const fresh=await deps.readAccount();grant(fresh);if(fresh.accountId!==account.accountId)throw Error('飞书账号已变化，未创建草稿');
    const draft:MessageDraft={id:crypto.randomUUID(),accountId:account.accountId,prompt:source,...plan,attachments,status:'ready'};
    await deps.store.write(draft);return structuredClone(draft);
@@ -34,18 +34,21 @@ export function createMessageWorkflow(deps:Dependencies){
    const draft=await owned(id);if(draft.status!=='ready')throw Error('草稿不可编辑');
    if(!change.content.trim()||change.content.length>10000||change.content.includes('\0'))throw Error('消息正文无效');
    const target=change.recipientId??draft.recipient?.id;
-   const recipient=(await deps.readRecipients()).find(r=>r.id===target&&eligibleMessageRecipient(r));if(!recipient)throw Error('消息对象已不可用');
+   const recipient=(deps.readRecipient?(target?[await deps.readRecipient(target)]:[]):await deps.readRecipients()).filter((r):r is MessageRecipient=>!!r).find(r=>r.id===target&&eligibleMessageRecipient(r));if(!recipient)throw Error('消息对象已不可用');
    draft.recipient=recipient;draft.awaitingRecipient=false;draft.recipientCandidates=[];draft.content=change.content;if(change.attachments!==undefined)draft.attachments=validateMessageAttachments(change.attachments);await deps.store.write(draft);return structuredClone(draft);
   });},
   async cancel(id:string){return exclusive(id,async()=>{const draft=await owned(id);if(draft.status!=='ready')throw Error('消息已提交，不能作为草稿取消，请核对飞书结果');draft.status='cancelled';await deps.store.write(draft);return draft;});},
-  async confirm(id:string){return exclusive(id,async()=>{
+  async confirm(id:string,change?:{recipientId?:string;content:string;attachments?:FeishuMessageAttachment[]}){return exclusive(id,async()=>{
    const draft=await owned(id);
    if(['sent','unknown','sending'].includes(draft.status))return draft;
    if(draft.status!=='ready')throw Error('草稿已关闭，未发送');
-   if(!draft.recipient||draft.awaitingRecipient)throw Error('请先选择消息对象');
-   const selected=draft.recipient;
-   const recipient=(await deps.readRecipients()).find(r=>r.id===selected.id&&r.kind===selected.kind&&eligibleMessageRecipient(r));
+   if(change&&(!change.content.trim()||change.content.length>10000||change.content.includes('\0')))throw Error('消息正文无效');
+   const target=change?.recipientId??draft.recipient?.id;
+   if(!target||(!change?.recipientId&&draft.awaitingRecipient))throw Error('请先选择消息对象');
+   const recipient=(deps.readRecipient?(target?[await deps.readRecipient(target)]:[]):await deps.readRecipients()).filter((r):r is MessageRecipient=>!!r).find(r=>r.id===target&&(!draft.recipient||change?.recipientId!==undefined||r.kind===draft.recipient.kind)&&eligibleMessageRecipient(r));
    if(!recipient)throw Error('消息对象已不可用，请重新选择');
+   draft.recipient=recipient;draft.awaitingRecipient=false;draft.recipientCandidates=[];
+   if(change){draft.content=change.content;if(change.attachments!==undefined)draft.attachments=validateMessageAttachments(change.attachments);}
    // Recheck after asynchronous candidate loading, before making the claim.
    const account=await deps.readAccount();grant(account);if(account.accountId!==draft.accountId)throw Error('飞书账号已变化，未发送');
    if(draft.attachments?.length&&!account.scopes.includes('im:resource'))throw Object.assign(Error('飞书缺少图片资源权限，请重新授权或移除图片后发送'),{code:'message_not_submitted'});

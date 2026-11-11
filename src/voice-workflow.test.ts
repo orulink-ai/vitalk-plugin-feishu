@@ -1,6 +1,34 @@
 import {expect,it,vi} from 'vitest';
 import {createVoiceWorkflow} from './voice-workflow';
 const event={requestId:'voice-1',actionId:'message',transcript:'让小冰带电脑找我',sessionId:'recording-1'};
+it('preserves the original failure when diagnostic code access throws',async()=>{
+ const {deps}=setup();const error=Error('original failure');
+ Object.defineProperty(error,'code',{get(){throw Error('code getter failed');}});
+ deps.prepareMessage.mockRejectedValue(error);
+ await expect(createVoiceWorkflow({...deps,diagnostic:vi.fn()})(event,new AbortController().signal)).rejects.toBe(error);
+});
+it('records the failed stage before SDK handling without recording private input',async()=>{
+ const {deps}=setup();const diagnostic=vi.fn();const error=Object.assign(Error('private provider response'),{code:'MODEL_TIMEOUT'});
+ deps.prepareMessage.mockRejectedValue(error);
+ await expect(createVoiceWorkflow({...deps,diagnostic})(event,new AbortController().signal)).rejects.toBe(error);
+ expect(diagnostic).toHaveBeenLastCalledWith(expect.objectContaining({action:'message',stage:'message.prepare',status:'failed',code:'MODEL_TIMEOUT',elapsedMs:expect.any(Number)}));
+ expect(JSON.stringify(diagnostic.mock.calls)).not.toContain(event.transcript);
+ expect(JSON.stringify(diagnostic.mock.calls)).not.toContain(error.message);
+});
+it('diagnostic failures cannot prevent draft preparation',async()=>{
+ const {deps}=setup();const diagnostic=()=>{throw Error('diagnostic unavailable');};
+ await expect(createVoiceWorkflow({...deps,diagnostic})(event,new AbortController().signal)).resolves.toMatchObject({title:'消息待确认'});
+});
+it('preserves a saved draft when the host cannot open its confirmation page',async()=>{
+ const {deps,run}=setup();deps.showMessage.mockRejectedValue(Error('window ACL denied'));
+ await expect(run(event,new AbortController().signal)).resolves.toMatchObject({title:'消息草稿已保存',text:expect.stringContaining('手动打开')});
+ expect(deps.prepareMessage).toHaveBeenCalledTimes(1);expect(deps.create).not.toHaveBeenCalled();
+});
+it('does not turn cancellation during navigation into a successful result',async()=>{
+ const {deps,run}=setup();const controller=new AbortController();
+ deps.showMessage.mockImplementation(async()=>{controller.abort();throw Error('cancelled');});
+ await expect(run(event,controller.signal)).rejects.toThrow();
+});
 function setup(){const deps={create:vi.fn(),prepareMessage:vi.fn().mockResolvedValue({id:'draft-1'}),showMessage:vi.fn().mockResolvedValue(undefined)};return {deps,run:createVoiceWorkflow(deps)};}
 it('message only prepares a draft and opens confirmation, never creates a task',async()=>{
  const {deps,run}=setup();const signal=new AbortController().signal;
@@ -81,4 +109,20 @@ it('does not present creation progress after the recording was cancelled',async(
  deps.create.mockImplementation(async(input)=>{controller.abort();input.onConfirmed({receipt:{guid:'g',url:''},plan:{summary:'带电脑'}});return {receipt:{guid:'g',url:''},plan:{summary:'带电脑'}};});
  await expect(createVoiceWorkflow({...deps,progress})({...event,actionId:'task'},controller.signal)).rejects.toThrow();
  expect(progress).not.toHaveBeenCalled();expect(deps.create).toHaveBeenCalledTimes(1);
+});
+
+it('waits for floating message confirmation and returns its actual receipt',async()=>{
+ const {deps}=setup();let resolve!:(value:{title:string;text:string})=>void;
+ const confirmMessage=vi.fn(()=>new Promise<{title:string;text:string}>(r=>{resolve=r;}));
+ let finished=false;const signal=new AbortController().signal;
+ const work=createVoiceWorkflow({...deps,confirmMessage})(event,signal).then(result=>{finished=true;return result;});
+ await vi.waitFor(()=>expect(confirmMessage).toHaveBeenCalledWith('voice-1',{id:'draft-1'},signal));
+ expect(finished).toBe(false);expect(deps.showMessage).not.toHaveBeenCalled();
+ resolve({title:'消息已发送',text:'实际回执'});
+ expect(await work).toEqual({title:'消息已发送',text:'实际回执'});
+});
+it('does not fall back to a success notice when floating confirmation fails',async()=>{
+ const {deps}=setup();const confirmMessage=vi.fn().mockRejectedValue(Error('VOICE_CANCELLED'));
+ await expect(createVoiceWorkflow({...deps,confirmMessage})(event,new AbortController().signal)).rejects.toThrow('VOICE_CANCELLED');
+ expect(deps.showMessage).not.toHaveBeenCalled();
 });

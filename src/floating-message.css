@@ -1,0 +1,15 @@
+html,body,#root {background:#24252b;color:#f5f5f7;color-scheme:dark;}
+:root {--background:#242424;--foreground:#f5f5f7;--popover:#303030;--popover-foreground:#f5f5f7;--muted-foreground:#b5b5bc;--border:#ffffff24;--vitalk-floating-background:#242424;--vitalk-floating-foreground:#f5f5f7;--vitalk-floating-shadow:none;}
+.floating-window-actions {display:flex;gap:8px;}
+.experiment-notice-body {flex:1;}
+.experiment-notice-window {width:100%;}
+.experiment-notice-window:not(.experiment-notice-message) {background:#24252b;border:1px solid #ffffff14;border-radius:16px;padding:16px;}
+.experiment-notice-window:not(.experiment-notice-message) .experiment-notice-body {overflow:auto;}
+.experiment-notice-window .feishu-activity-list {display:grid;gap:12px;margin-top:16px;}
+.experiment-notice-window .feishu-activity-list article {border:1px solid #ffffff14;background:#ffffff06;border-radius:12px;padding:12px;}
+.experiment-notice-window .feishu-activity-list article>div {display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.experiment-notice-window .feishu-activity-list article p {font-size:12px;color:#b5b5bc;margin:8px 0;}
+.experiment-notice-window .feishu-section-heading h2 {display:none;}
+.experiment-notice-window .feishu-section-heading p {font-size:12px;color:#a1a1aa;}
+.experiment-notice-message .feishu-message-recipient {padding-right:100px;}
+.experiment-notice-message .floating-window-actions button {padding:4px;width:28px;height:28px;border:0;}

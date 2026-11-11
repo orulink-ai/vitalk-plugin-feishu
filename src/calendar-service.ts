@@ -110,7 +110,17 @@ export async function createCalendar(cli: Cli, plan: CalendarCreatePlan, operati
   if (!identifier(event?.event_id)) throw new Error(uncertain);
 
   const eventId = event.event_id;
-  const url = calendarEventUrl(event.app_link) ?? '';
+  let url = calendarEventUrl(event.app_link) ?? '';
+  if (!url) {
+    try {
+      const readback = record(record(await run([
+        'calendar','events','get','--calendar-id',calendarId,'--event-id',eventId,
+      ],'read-link'))?.event);
+      if (readback?.event_id === eventId) url = calendarEventUrl(readback.app_link) ?? '';
+    } catch {
+      // Creation is already confirmed; a failed link lookup must never recreate it.
+    }
+  }
   const confirmed = new Set<string>();
   const participantCount = participants.length;
   const makeReceipt = (invitationStatus:CalendarReceipt['invitationStatus'], reason:string, persistenceWarning?:string):CalendarReceipt => Object.freeze({

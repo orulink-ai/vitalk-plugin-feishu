@@ -1,8 +1,9 @@
+import {readDraftCandidates} from './draft-candidates';
 import {CliNotAuthenticatedError} from './cli-auth';
 import {createWorkspaceMessageService} from './workspace-message-service';
 import {createWorkspaceStateService} from './workspace-state-service';
 import {createFeishuRuntime} from './feishu-runtime';
-import {syncContacts,searchContacts} from './contact-service';
+import {syncContacts,searchContacts,readMessageRecipient} from './contact-service';
 import type {MessageRecipient} from './message-intent';
 import QRCode from 'qrcode';
 import {createCliAuthService} from './cli-auth-service';
@@ -40,7 +41,17 @@ async function messageContacts(signal?:AbortSignal,query?:string):Promise<Messag
  await getWorkspaceState().saveCatalog({recipients,partial:true,lastSync:query?state.catalog.lastSync:Date.now()},account.accountId);
  return result;
 }
-export function getMessageService(){return messageService??=createWorkspaceMessageService(getClient().request,{readRecipients:signal=>messageContacts(signal),readPreference:async signal=>{signal?.throwIfAborted();const state=await getWorkspaceState().read();signal?.throwIfAborted();return state.config.feishuMessageStyle??'';}});}
+async function selectedMessageContact(id:string,signal?:AbortSignal):Promise<MessageRecipient|undefined>{
+ signal?.throwIfAborted();const state=await getWorkspaceState().read();
+ const runtime=createFeishuRuntime((m,p,o)=>{signal?.throwIfAborted();return getClient().request(m,p,{...o,signal});});
+ const account=await runtime.readAccount();if(account.accountId!==state.accountId)throw Error('飞书账号已变化，请重新读取联系人');
+ const cached=state.catalog.recipients.find(r=>r.id===id);if(!cached||cached.kind==='bot')return undefined;
+ const selected:MessageRecipient={id:cached.id,name:cached.name,kind:cached.kind,aliases:state.entries.filter(e=>e.recipientId===id).map(e=>e.query),active:false,external:true};
+ const result=selected.kind==='person'&&selected.id===account.accountId?{...selected,active:true,external:false}:await readMessageRecipient(runtime.cli,selected,`contact-${crypto.randomUUID()}`);
+ if((await runtime.readAccount()).accountId!==account.accountId)throw Error('飞书账号已变化，请重新读取联系人');
+ signal?.throwIfAborted();return result;
+}
+export function getMessageService(){return messageService??=createWorkspaceMessageService(getClient().request,{readRecipient:selectedMessageContact,readDraftRecipients:signal=>readDraftCandidates(()=>getWorkspaceState().read(),messageContacts,signal),readRecipients:signal=>messageContacts(signal),readPreference:async signal=>{signal?.throwIfAborted();const state=await getWorkspaceState().read();signal?.throwIfAborted();return state.config.feishuMessageStyle??'';}});}
 async function workspaceSnapshot(){try{await createFeishuRuntime((m,p,o)=>getClient().request(m,p,o)).readAccount();}catch(error){if(!(error instanceof CliNotAuthenticatedError))throw error;return {config:{feishuTools:true,feishuRecipientModel:'llm',feishuMessageStyle:'',pluginShortcuts:[]},feishuCatalog:{recipients:[],partial:true,lastSync:null},feishuDraft:null,aiReplies:[]};}const state=await getWorkspaceState().read();return {config:state.config,feishuCatalog:state.catalog,feishuDraft:await getMessageService().read(),aiReplies:await getWorkspaceState().readHistory()};}
 let authService:ReturnType<typeof createCliAuthService>|undefined;
 function auth(){return authService??=createCliAuthService((method,params,options)=>getClient().request(method,params,options),AUTH_SCOPES,url=>QRCode.toDataURL(url,{width:240,margin:2}));}

@@ -1,3 +1,4 @@
+import {readNativeDependencies} from '@vitalk/plugin-sdk';
 import {describe,it,expect} from 'vitest';
 import {readFile} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
@@ -9,9 +10,10 @@ describe('独立飞书安装包',()=>{
     const bytes=await readFile(root+'dist/vitalk-plugin-feishu.vitalk-plugin.json');
     const pkg=JSON.parse(bytes.toString());
     expect(pkg.format).toBe('vitalk-plugin/v1');
-    expect(pkg.manifest).toEqual(JSON.parse(await readFile(root + 'manifest.json', 'utf8')));
+    const source = JSON.parse(await readFile(root + 'manifest.json', 'utf8'));
+    expect({...pkg.manifest, nativeDependencies:pkg.manifest.nativeDependencies.filter((item:{id:string})=>item.id!=='feishu-message-dialog')}).toEqual(source);
     expect(pkg.manifest.id).toBe('vitalk-plugin-feishu');
-    expect(pkg.manifest.version).toBe('0.1.7');
+    expect(pkg.manifest.version).toBe('0.1.8');
     // The message grant is retained only for migration of legacy workspace data.
     expect(pkg.manifest.permissions).toEqual(['external.open','feishu.messages','native.execute','ai.generate','storage','voice.commands','files.stage']);
     expect(pkg.html).toContain('native.execute');
@@ -40,9 +42,27 @@ describe('插件自有 CLI 资源', () => {
       const suffix = platform.startsWith('windows-') ? '.exe' : '';
       expect(artifact.executable).toBe('lark-cli' + suffix);
       expect(artifact.url).toBe(
-        'https://github.com/orulink-ai/vitalk-plugin-feishu/releases/download/v0.1.7/lark-cli-1.0.98-' + platform + suffix,
+        'https://github.com/orulink-ai/vitalk-plugin-feishu/releases/download/v0.1.8/lark-cli-1.0.98-' + platform + suffix,
       );
       expect(artifact.sha256).toMatch(/^[a-f0-9]{64}$/);
     }
   });
+});
+
+it('发布包声明可下载且摘要匹配的插件消息确认组件', async () => {
+  const pkg = JSON.parse(await readFile(root + 'dist/vitalk-plugin-feishu.vitalk-plugin.json', 'utf8'));
+  const dependency = pkg.manifest.nativeDependencies.find((item: {id:string}) => item.id === 'feishu-message-dialog');
+  expect(dependency).toBeDefined();
+  expect(dependency.repository).toBe('orulink-ai/vitalk-plugin-feishu');
+  const artifact = dependency.platforms['windows-x86_64'];
+  const binary = await readFile(root + 'dist/feishu-message-dialog-0.1.8-windows-x86_64.exe');
+  expect(binary.subarray(0,2).toString()).toBe('MZ');
+  expect(artifact.sha256).toBe(createHash('sha256').update(binary).digest('hex'));
+  expect(artifact.url).toBe('https://github.com/orulink-ai/vitalk-plugin-feishu/releases/download/v0.1.8/feishu-message-dialog-0.1.8-windows-x86_64.exe');
+});
+
+
+it('生成包通过现有桌面 SDK 的实际原生依赖校验', async () => {
+ const pkg=JSON.parse(await readFile(root+'dist/vitalk-plugin-feishu.vitalk-plugin.json','utf8'));
+ expect(()=>readNativeDependencies(pkg.manifest.id,pkg.manifest.version,pkg.manifest.nativeDependencies)).not.toThrow();
 });
