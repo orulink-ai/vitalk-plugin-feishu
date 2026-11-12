@@ -1,5 +1,11 @@
 import {expect,it,vi} from 'vitest';
 import {notifyTask} from './task-notification';
+it('shares the same task to each assignee with independent operation identities',async()=>{
+ const cli=vi.fn().mockResolvedValue({message_id:'om_shared'});
+ const result=await notifyTask(cli,{action:'create',assigneeId:'ou_a',assigneeIds:['ou_a','ou_b'],summary:'共享任务',description:'',due:null},'task-shared','operation-shared',async()=>{});
+ expect(cli).toHaveBeenCalledTimes(2);expect(cli.mock.calls.map(([args])=>args[args.indexOf('--user-id')+1])).toEqual(['ou_a','ou_b']);
+ expect(new Set(cli.mock.calls.map(([,operation])=>operation)).size).toBe(2);expect(result.status).toBe('sent');
+});
 const task={action:'create' as const,assigneeId:'ou_ice',summary:'带电脑找我',description:'',due:null};
 it('keeps confirmed task success when card formatting fails',async()=>{
   const cli=vi.fn();

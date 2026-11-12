@@ -9,11 +9,9 @@ import { feishuDetailUrl } from "./workspace-receipts";
 export function FeishuActivityPanel({
   replies,
   kind,
-  onOpenUrl = openFeishuUrl,
 }: {
   replies: AiReply[];
   kind?: "feishuTask" | "feishuMeeting";
-  onOpenUrl?: (url:string)=>Promise<unknown>;
 }) {
   const [error, setError] = useState("");
   const rows = replies
@@ -91,7 +89,7 @@ export function FeishuActivityPanel({
                     variant="outline"
                     size="sm"
                     onClick={() =>
-                      void onOpenUrl(url)
+                      void openFeishuUrl(url)
                         .catch(() => setError("无法打开飞书，请检查客户端。"))
                     }
                   >

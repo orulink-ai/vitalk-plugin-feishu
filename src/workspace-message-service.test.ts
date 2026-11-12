@@ -50,3 +50,12 @@ it('uses host-valid keys when cancelling and recalling durable drafts',async()=>
  expect(await service.recall({id:sent.id,confirmed:true})).toMatchObject({status:'recalled'});
  expect(await service.read()).toMatchObject({status:'recalled',receipt:'om_sent'});
 });
+it('keeps single-recipient confirmation compatible with the host strict JSON storage boundary',async()=>{
+ const {service,request}=setup();const original=request.getMockImplementation()!;
+ request.mockImplementation(async(m,p)=>{
+  if(m==='storage.set')JSON.stringify(p.value,(key,value)=>{if(value===undefined)throw Error('host rejects undefined: '+key);return value;});
+  return original(m,p);
+ });
+ const draft=await service.prepare({prompt:'给小冰说好'});
+ await expect(service.send({id:draft.id,content:draft.content})).resolves.toMatchObject({status:'sent',receipt:'om_sent'});
+});

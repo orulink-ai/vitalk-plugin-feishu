@@ -5,12 +5,12 @@ import {createReportedVoiceWorkflow} from './voice-workflow';
 import {createWorkspaceItem} from './workspace-create-service';
 import {runWorkspaceVoiceOperation} from './voice-operation-service';
 import {confirmVoiceMessage} from './voice-message-confirmation';
-import {createPluginMessageDialog} from './plugin-message-dialog';
+import {createMessageNotice} from './message-notice';
 import './style.css';
 const root=createRoot(document.getElementById('root')!);
 root.render(<App/>);
 const client=getClient();
-const confirmMessageDialog=createPluginMessageDialog((method,params,options)=>client.request(method,params,options));
+const confirmMessageDialog=createMessageNotice((form,options)=>client.notice.present(form,options));
 const showMessage=async(draftId:string)=>{
   await client.host.openPlugin();
   window.dispatchEvent(new CustomEvent('feishu-message-draft-ready',{detail:{draftId}}));

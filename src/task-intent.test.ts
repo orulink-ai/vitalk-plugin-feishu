@@ -3,6 +3,11 @@ import {prepareTask, type Person} from './task-intent';
 const people:Person[]=[{id:'ou_ice',name:'阳晓冰',aliases:['小冰'],active:true,external:false}];
 const plan={action:'create',assigneeId:'ou_ice',summary:'带上电脑来找我',description:'',due:null};
 const approved={supported:true,complete:true,recipientSupported:true,timeSupported:true};
+it('all people resolves all verified individual contacts into one shared task',async()=>{
+ const model=vi.fn().mockResolvedValueOnce({action:'create',assigneeScope:'allContacts',scopeEvidence:'所有联系人',summary:'等会找我',description:'',due:null}).mockResolvedValueOnce(approved);
+ const result=await prepareTask('给所有联系人创建一个任务，让他们等会找我',[...people,{...people[0],id:'ou_second',name:'同事'}, {...people[0],id:'ou_left',active:false}],'2026-11-11T10:00:00+08:00',model);
+ expect(result).toMatchObject({assigneeIds:['ou_ice','ou_second'],assigneeScope:'allContacts',due:null});
+});
 it.each(['让小冰带着电脑找我。','给小冰创一个任务，让他等会来找我，顺便带上电脑。'])('interprets free speech without task markers: %s',async source=>{
   const model=vi.fn().mockResolvedValueOnce(plan).mockResolvedValueOnce(approved);
   expect(await prepareTask(source,people,'2026-11-07T10:00:00+08:00',model)).toEqual(plan);

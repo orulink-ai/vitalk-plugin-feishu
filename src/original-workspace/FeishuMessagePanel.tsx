@@ -7,9 +7,10 @@ import { Textarea } from "@/components/ui/textarea";
 import "./feishu-message-panel.css";
 
 export interface FeishuRecipient {
+  isContact?: boolean;
   id: string;
   name: string;
-  kind: "person" | "group" | "bot";
+  kind: "person" | "group" | "bot" | "allContacts";
   detail?: string;
   avatarUrl?: string;
 }
@@ -64,7 +65,7 @@ export interface FeishuMessagePanelProps {
   onPickerChange?: (open: boolean) => void;
 }
 const recipientLabel = (kind: FeishuRecipient["kind"]) =>
-  kind === "bot" ? "机器人" : kind === "group" ? "群聊" : "联系人";
+  kind === "allContacts" ? "全部个人联系人" : kind === "bot" ? "机器人" : kind === "group" ? "群聊" : "联系人";
 const statusLabels: Record<FeishuMessageDraft["status"], string> = {
   composing: "说出或输入发送对象和消息内容",
   preparing: "正在生成消息…",

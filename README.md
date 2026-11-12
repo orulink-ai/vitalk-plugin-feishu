@@ -4,9 +4,9 @@
 
 当前运行入口直接加载 `src/original-workspace/QuickMessagePage.tsx`，按消息、任务、日程划分主工作区，将联系人、操作记录、设置放到辅助导航。原生调用统一通过本仓库 SDK 适配器。2026-11-04 已在 Windows 源码桌面端完成消息发送、无截止任务和默认半小时日程的原生接口实测；用户真实麦克风任务测试成功并确认，负责人匹配和通知发送成功。真实麦克风消息/日程未单独测试，不把接口验收写成三类物理录音均通过。
 
-独立插件 ID 为 `vitalk-plugin-feishu`，当前候选版本 0.1.8，尚待正式安装版验收。页面和飞书业务调用位于本仓库，桌面端提供录音、插件快捷键、安全存储和权限校验网关。插件通过 SDK 调用已配置的模型理解指令、整理内容，并管理自己的飞书 CLI。
+独立插件 ID 为 `vitalk-plugin-feishu`，本次发布版本 0.1.8，需要 ViTalk 0.6.22 或更新版本。页面和飞书业务调用位于本仓库，桌面端提供录音、插件快捷键、安全存储和权限校验网关。插件通过 SDK 调用已配置的模型理解指令、整理内容，并管理自己的飞书 CLI。
 
-`npm ci` 后运行 `npm run typecheck`、`npm test`、`npm run build`。构建产物在 `dist/vitalk-plugin-feishu.vitalk-plugin.json`，可从 ViTalk 插件商店手动导入。安装时确认插件实际使用的能力权限，启用后在插件设置中配置语音快捷键。
+`npm ci` 后运行 `npm run typecheck`、`npm test`、`npm run build`。构建产物在 `dist/vitalk-plugin-feishu.vitalk-plugin.json`，可从 ViTalk 插件商店手动导入。安装并启用后在插件设置中配置语音快捷键。
 
 消息先准备草稿、检查收件人和正文，再明确确认发送。任务页面支持创建、列表与完成，日程页面支持创建与查看；创建参数由所选文字模型提取，插件负责飞书业务校验、CLI 调用、去重和回执。普通“会议”按日程处理，未指定结束时间默认 30 分钟；视频会议不在本版自动创建范围内。
 
@@ -27,7 +27,7 @@
 
 同一 release 应上传 `vitalk-plugin-feishu.vitalk-plugin.json`、对应 `.sha256`、六个 `lark-cli-1.0.98-<platform>` 资源、`native-checksums.txt` 和 `LICENSE.lark-cli`。发布前须在目标桌面版本完成插件安装、禁用、重新启用与 CLI 调用验收。准备脚本只生成文件，发布由维护者另行执行。MIT 许可和上游版权声明随 CLI 资源一起分发。
 
-Windows 消息确认窗由插件自有的 `feishu-message-dialog` 组件承载，复用原有联系人和消息编辑组件；不需要修改桌面端。发布构建需在 Windows 运行，会校验固定版本的 Microsoft WebView2 SDK 后，将界面和依赖内嵌到单个可执行文件。还需上传 `feishu-message-dialog-0.1.8-windows-x86_64.exe`、其 `.sha256`、`LICENSE.webview2` 和 `NOTICE.webview2`；用户运行时使用系统已有的 WebView2 Runtime。
+消息确认和历史记录复用 ViTalk 自带悬浮窗，需要 ViTalk 0.6.22 或更新版本提供的 `notice.present` 接口。宿主只渲染通用字段和返回确认回执，飞书 CLI、联系人、草稿及发送业务全部留在插件。插件不再安装或启动额外的消息弹窗程序。
 
 CLI 的升级和缺失文件恢复由插件清单驱动。卸载或停用插件后，宿主停止使用其运行时；已校验的运行文件可以保留供重新安装使用。账号凭据沿用原有 CLI 授权存储，依赖更新不会触发重新授权。
 

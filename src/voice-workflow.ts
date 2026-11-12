@@ -1,3 +1,4 @@
+import {PreparationError} from './person-context';
 type Attachment={id:string;dataUrl:string;width:number;height:number};
 type VoiceRequest={requestId:string;actionId:string;transcript:string;sessionId:string;attachments?:Attachment[]};
 type Result={title:string;text:string;links?:{label:string;url:string}[]};
@@ -104,14 +105,16 @@ export function createReportedVoiceWorkflow(deps:Dependencies){
   }});
   try{return await run(event,signal);}catch(error){
    signal.throwIfAborted();
+   if(failure?.stage==='message.confirm'&&failure.code==='MESSAGE_CONFIRMATION_CANCELLED')return {title:'消息已取消',text:'消息尚未发送，草稿已保留。'};
    if(error instanceof DOMException&&error.name==='AbortError')throw error;
    const labels:Record<string,string>={'message.prepare':'整理消息','message.confirm':'确认或发送消息','message.open':'打开确认窗口','task.intent':'理解任务','task.create':'创建任务','calendar.intent':'理解日程','calendar.create':'创建日程'};
    const action=event.actionId==='message'?'消息':event.actionId==='task'?'任务':'日程';
    const stage=failure?labels[failure.stage]||'处理请求':'处理请求';
    const elapsed=(Math.round(performance.now()-started)/1000).toFixed(1);
+   if(error instanceof PreparationError)return {title:`${action}处理失败`,text:`${stage}失败：${error.message}。耗时 ${elapsed} 秒。本次请求未执行发送或创建。`};
    const codes=[failure?.code,failure?.upstreamCode].filter(value=>value!==undefined);
    const detail=codes.length?`（${codes.join(' / ')}）`:'';
-   const dialogUnsent=failure?.stage==='message.confirm'&&['MESSAGE_DIALOG_INSTALL_FAILED','MESSAGE_DIALOG_FAILED','MESSAGE_DIALOG_INVALID_RECEIPT','MESSAGE_DIALOG_DRAFT_MISMATCH'].includes(failure.code||'');
+   const dialogUnsent=failure?.stage==='message.confirm'&&['MESSAGE_NOTICE_FAILED','MESSAGE_NOTICE_INVALID_RECEIPT'].includes(failure.code||'');
    const uncertain=!failure||!['message.prepare','message.open'].includes(failure.stage);
    return {title:`${action}处理失败`,text:`${stage}失败${detail}，耗时 ${elapsed} 秒。${dialogUnsent?'消息尚未发送，草稿已保留，请重新打开确认窗口。':uncertain?'操作结果尚未确认，请先在飞书核对，避免重复提交。':'本次请求未执行发送或创建。'}`};
   }

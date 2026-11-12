@@ -11,7 +11,7 @@ describe('独立飞书安装包',()=>{
     const pkg=JSON.parse(bytes.toString());
     expect(pkg.format).toBe('vitalk-plugin/v1');
     const source = JSON.parse(await readFile(root + 'manifest.json', 'utf8'));
-    expect({...pkg.manifest, nativeDependencies:pkg.manifest.nativeDependencies.filter((item:{id:string})=>item.id!=='feishu-message-dialog')}).toEqual(source);
+    expect(pkg.manifest).toEqual(source);
     expect(pkg.manifest.id).toBe('vitalk-plugin-feishu');
     expect(pkg.manifest.version).toBe('0.1.8');
     // The message grant is retained only for migration of legacy workspace data.
@@ -49,18 +49,14 @@ describe('插件自有 CLI 资源', () => {
   });
 });
 
-it('发布包声明可下载且摘要匹配的插件消息确认组件', async () => {
-  const pkg = JSON.parse(await readFile(root + 'dist/vitalk-plugin-feishu.vitalk-plugin.json', 'utf8'));
-  const dependency = pkg.manifest.nativeDependencies.find((item: {id:string}) => item.id === 'feishu-message-dialog');
-  expect(dependency).toBeDefined();
-  expect(dependency.repository).toBe('orulink-ai/vitalk-plugin-feishu');
-  const artifact = dependency.platforms['windows-x86_64'];
-  const binary = await readFile(root + 'dist/feishu-message-dialog-0.1.8-windows-x86_64.exe');
-  expect(binary.subarray(0,2).toString()).toBe('MZ');
-  expect(artifact.sha256).toBe(createHash('sha256').update(binary).digest('hex'));
-  expect(artifact.url).toBe('https://github.com/orulink-ai/vitalk-plugin-feishu/releases/download/v0.1.8/feishu-message-dialog-0.1.8-windows-x86_64.exe');
+it('发布包只声明业务 CLI，确认与历史调用宿主现有浮窗',async()=>{
+ const pkg=JSON.parse(await readFile(root+'dist/vitalk-plugin-feishu.vitalk-plugin.json','utf8'));
+ expect(pkg.manifest.nativeDependencies.map((d:{id:string})=>d.id)).toEqual(['lark-cli']);
+ expect(pkg.html).toContain('notice.present');
+ expect(pkg.html).not.toContain('feishu-message-dialog');
+ expect(pkg.html).not.toContain('--store');
+ expect(await readFile(root+'build.mjs','utf8')).not.toContain('packageMessageDialog');
 });
-
 
 it('生成包通过现有桌面 SDK 的实际原生依赖校验', async () => {
  const pkg=JSON.parse(await readFile(root+'dist/vitalk-plugin-feishu.vitalk-plugin.json','utf8'));

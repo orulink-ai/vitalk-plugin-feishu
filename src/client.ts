@@ -1,4 +1,5 @@
 import {readDraftCandidates} from './draft-candidates';
+import {personContext,PreparationError} from './person-context';
 import {CliNotAuthenticatedError} from './cli-auth';
 import {createWorkspaceMessageService} from './workspace-message-service';
 import {createWorkspaceStateService} from './workspace-state-service';
@@ -21,15 +22,17 @@ export function getClient(){
 let workspaceState:ReturnType<typeof createWorkspaceStateService>|undefined;
 let messageService:ReturnType<typeof createWorkspaceMessageService>|undefined;
 export function getWorkspaceState(){return workspaceState??=createWorkspaceStateService(getClient().request,createFeishuRuntime((m,p,o)=>getClient().request(m,p,o)).readAccount);}
-async function messageContacts(signal?:AbortSignal,query?:string):Promise<MessageRecipient[]>{
+async function messageContacts(signal?:AbortSignal,query?:string,requireComplete=false):Promise<MessageRecipient[]>{
  signal?.throwIfAborted();const state=await getWorkspaceState().read();signal?.throwIfAborted();
  const runtime=createFeishuRuntime((m,p,o)=>{signal?.throwIfAborted();return getClient().request(m,p,{...o,signal});});
  const account=await runtime.readAccount();if(account.accountId!==state.accountId)throw Error('飞书账号已变化，请重新读取联系人');
- const cached=state.catalog.recipients.filter(r=>r.kind==='person').map(r=>({id:r.id,name:r.name,aliases:state.entries.filter(e=>e.recipientId===r.id).map(e=>e.query),active:false,external:true}));
+ const cached=state.catalog.recipients.filter(r=>r.kind==='person').map(r=>({id:r.id,name:r.name,aliases:state.entries.filter(e=>e.recipientId===r.id).map(e=>e.query),active:false,external:true,...(r.isContact===false?{isContact:false}:{})}));
  const read=(args:string[])=>runtime.cli(args,`contacts-${crypto.randomUUID()}`);
  const catalog=query?await searchContacts(read,query,'message-search',{cached}):await syncContacts(read,'message-sync',{cached});
  if((await runtime.readAccount()).accountId!==account.accountId)throw Error('飞书账号已变化，请重新读取联系人');
- const result:MessageRecipient[]=[...catalog.people.map(p=>({...p,kind:'person' as const})),...catalog.chats.map(c=>({id:c.id,name:c.name,aliases:state.entries.filter(e=>e.recipientId===c.id).map(e=>e.query),kind:'group' as const,active:c.active,external:c.external}))];
+ const contacts=catalog.people.filter(p=>p.isContact!==false);
+ if(requireComplete&&(!contacts.length||contacts.some(p=>!p.active||p.external)))throw new PreparationError('未能完整核验全部个人联系人，未发送消息');
+ const result:MessageRecipient[]=[...personContext(catalog.people,account.accountId,state.entries,!query).map(p=>({...p,kind:'person' as const})),...catalog.chats.map(c=>({id:c.id,name:c.name,aliases:state.entries.filter(e=>e.recipientId===c.id).map(e=>e.query),kind:'group' as const,active:c.active,external:c.external}))];
  // Fresh authentication establishes the current sender's own messaging identity.
  // This exception is local to message recipients, never the employee roster.
  const self=result.find(r=>r.kind==='person'&&r.id===account.accountId);
@@ -51,7 +54,7 @@ async function selectedMessageContact(id:string,signal?:AbortSignal):Promise<Mes
  if((await runtime.readAccount()).accountId!==account.accountId)throw Error('飞书账号已变化，请重新读取联系人');
  signal?.throwIfAborted();return result;
 }
-export function getMessageService(){return messageService??=createWorkspaceMessageService(getClient().request,{readRecipient:selectedMessageContact,readDraftRecipients:signal=>readDraftCandidates(()=>getWorkspaceState().read(),messageContacts,signal),readRecipients:signal=>messageContacts(signal),readPreference:async signal=>{signal?.throwIfAborted();const state=await getWorkspaceState().read();signal?.throwIfAborted();return state.config.feishuMessageStyle??'';}});}
+export function getMessageService(){return messageService??=createWorkspaceMessageService(getClient().request,{readAllRecipients:signal=>messageContacts(signal,undefined,true),readRecipient:selectedMessageContact,readDraftRecipients:signal=>readDraftCandidates(()=>getWorkspaceState().read(),messageContacts,signal),readRecipients:signal=>messageContacts(signal),readPreference:async signal=>{signal?.throwIfAborted();const state=await getWorkspaceState().read();signal?.throwIfAborted();return state.config.feishuMessageStyle??'';}});}
 async function workspaceSnapshot(){try{await createFeishuRuntime((m,p,o)=>getClient().request(m,p,o)).readAccount();}catch(error){if(!(error instanceof CliNotAuthenticatedError))throw error;return {config:{feishuTools:true,feishuRecipientModel:'llm',feishuMessageStyle:'',pluginShortcuts:[]},feishuCatalog:{recipients:[],partial:true,lastSync:null},feishuDraft:null,aiReplies:[]};}const state=await getWorkspaceState().read();return {config:state.config,feishuCatalog:state.catalog,feishuDraft:await getMessageService().read(),aiReplies:await getWorkspaceState().readHistory()};}
 let authService:ReturnType<typeof createCliAuthService>|undefined;
 function auth(){return authService??=createCliAuthService((method,params,options)=>getClient().request(method,params,options),AUTH_SCOPES,url=>QRCode.toDataURL(url,{width:240,margin:2}));}

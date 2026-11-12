@@ -1,9 +1,20 @@
 import {expect,it,vi} from 'vitest';
 import {createReportedVoiceWorkflow} from './voice-workflow';
+import {PreparationError} from './person-context';
+it('reports a rejected task plan as not submitted and explains the actual controlled reason',async()=>{
+ const run=createReportedVoiceWorkflow({prepareMessage:vi.fn(),create:vi.fn().mockRejectedValue(new PreparationError('任务负责人未能确定')),showMessage:vi.fn()});
+ const result=await run({requestId:'r',actionId:'task',transcript:'给小冰创一个任务',sessionId:'s'},new AbortController().signal);
+ expect(result.text).toContain('任务负责人未能确定');expect(result.text).toContain('未执行发送或创建');expect(result.text).not.toContain('操作结果尚未确认');
+});
+it('reports a closed confirmation as unsent cancellation rather than generic failure',async()=>{
+ const run=createReportedVoiceWorkflow({prepareMessage:vi.fn().mockResolvedValue({id:'d'}),confirmMessage:vi.fn().mockRejectedValue(Object.assign(Error('cancel'),{code:'MESSAGE_CONFIRMATION_CANCELLED'})),create:vi.fn(),showMessage:vi.fn()});
+ const result=await run({requestId:'r',actionId:'message',transcript:'x',sessionId:'s'},new AbortController().signal);
+ expect(result).toEqual({title:'消息已取消',text:'消息尚未发送，草稿已保留。'});
+});
 it('correlates stages and preserves safe nested failure codes',async()=>{
  const diagnostic=vi.fn();
  const cause=Object.assign(Error('private secret'),{code:'NATIVE_TIMEOUT'});
- const run=createReportedVoiceWorkflow({diagnostic,prepareMessage:vi.fn().mockRejectedValue(Object.assign(Error('wrapper'),{code:'MESSAGE_DIALOG_FAILED',cause})),create:vi.fn(),showMessage:vi.fn()});
+ const run=createReportedVoiceWorkflow({diagnostic,prepareMessage:vi.fn().mockRejectedValue(Object.assign(Error('wrapper'),{code:'MESSAGE_NOTICE_FAILED',cause})),create:vi.fn(),showMessage:vi.fn()});
  await run({requestId:'r',actionId:'message',transcript:'private',sessionId:'s'},new AbortController().signal);
  expect(diagnostic).toHaveBeenCalledWith(expect.objectContaining({requestId:'r',stage:'message.prepare',status:'started'}));
  expect(diagnostic).toHaveBeenCalledWith(expect.objectContaining({requestId:'r',status:'failed',causeCodes:['NATIVE_TIMEOUT']}));
@@ -39,7 +50,7 @@ it('does not claim no mutation when task operation fails after a possible edit',
 });
 
 it('reports a dialog failure as unsent, not an uncertain send',async()=>{
- const run=createReportedVoiceWorkflow({prepareMessage:vi.fn().mockResolvedValue({id:'d'}),confirmMessage:vi.fn().mockRejectedValue(Object.assign(Error('private'),{code:'MESSAGE_DIALOG_FAILED'})),create:vi.fn(),showMessage:vi.fn()});
+ const run=createReportedVoiceWorkflow({prepareMessage:vi.fn().mockResolvedValue({id:'d'}),confirmMessage:vi.fn().mockRejectedValue(Object.assign(Error('private'),{code:'MESSAGE_NOTICE_FAILED'})),create:vi.fn(),showMessage:vi.fn()});
  const result=await run({requestId:'r',actionId:'message',transcript:'x',sessionId:'s'},new AbortController().signal);
  expect(result.text).toContain('消息尚未发送');
  expect(result.text).not.toContain('操作结果尚未确认');

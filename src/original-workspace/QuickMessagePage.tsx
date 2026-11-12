@@ -1,5 +1,5 @@
 import { MessageStyleSettings } from "./MessageStyleSettings";
-import {openPluginHistory} from '../plugin-history-dialog';
+import {openPluginHistory} from '../plugin-history-notice';
 import { RecipientMemoryPanel } from "./RecipientMemoryPanel";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {

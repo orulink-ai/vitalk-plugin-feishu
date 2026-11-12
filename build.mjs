@@ -1,4 +1,3 @@
-import { packageMessageDialog } from './package-message-dialog.mjs';
 import { build } from 'vite';
 import { createHash } from 'node:crypto';
 import { readFile, mkdir, writeFile } from 'node:fs/promises';
@@ -8,7 +7,6 @@ import { resolve, join } from 'node:path';
 const root = fileURLToPath(new URL('.', import.meta.url));
 const manifest = JSON.parse(await readFile(join(root, 'manifest.json'), 'utf8'));
 const directory = resolve(process.argv[2] || join(root,'dist'));
-await packageMessageDialog(root, directory, manifest);
 const bundle = await build({root,configFile:join(root,'vite.config.ts'),build:{write:false,minify:true}});
 const files = Array.isArray(bundle) ? bundle.flatMap(x => x.output) : bundle.output;
 const script = files.filter(x => x.type === 'chunk').map(x => x.code).join('\n').replace(/<\/script/gi,'<\\/script');

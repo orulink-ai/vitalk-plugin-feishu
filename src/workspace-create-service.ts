@@ -6,6 +6,7 @@ import {createIntentModel} from './intent-model';
 import {runTaskCreation} from './task-workflow';
 import {runCalendarCreation} from './calendar-workflow';
 import type {Person} from './task-intent';
+import {personContext,PreparationError} from './person-context';
 
 type CreateRequest = {kind:'task'|'calendar'; prompt:string; operationId:string;signal?:AbortSignal;onConfirmed?:(value:{receipt:Record<string,unknown>;plan:Record<string,unknown>})=>void};
 
@@ -38,15 +39,13 @@ export async function createWorkspaceItem({kind,prompt,operationId,signal,onConf
   const input = {source:prompt,operationId,referenceTime:new Date().toISOString()};
   let accountId: string | undefined;
   let people: Person[] = [];
+  let contactsComplete=false;
   const readAccount = async () => {
     const account = await runtime.readAccount();
     accountId ??= account.accountId;
     return account;
   };
   const readPeople = async () => {
-    const lookup = await model({purpose:'creationContactQueries',kind,source:prompt},queryInstructions)
-      .catch(() => { signal?.throwIfAborted(); return {queries:[]}; });
-    const queries = contactQueries(prompt,lookup.queries);
     // Every page and profile lookup is a separate native execution.
     let sequence = 0;
     const read = (args:string[]) => runtime.cli(args,operationId+':contacts:'+sequence++);
@@ -57,23 +56,29 @@ export async function createWorkspaceItem({kind,prompt,operationId,signal,onConf
       }
     };
     const unavailable = () => { signal?.throwIfAborted(); return undefined; };
-    collect(await syncContacts(read,operationId,{peopleOnly:true}).catch(unavailable));
-    for (const query of queries) {
-      collect(await searchContacts(read,query,operationId).catch(unavailable));
-    }
-    let aliases:Awaited<ReturnType<ReturnType<typeof getWorkspaceState>['readAliases']>> = [];
-    if (accountId) {
-      try { aliases = await getWorkspaceState().readAliases(accountId); }
-      catch { signal?.throwIfAborted(); }
-    }
-    people = [...candidates.values()].map(person => ({
-      ...person,
-      aliases:[...new Set([...person.aliases,...aliases.filter(entry => entry.recipientId === person.id)
-        .map(entry => entry.query.trim()).filter(query => query.length > 0 && query.length <= 50)])],
-    }));
-    if (accountId && !people.some(person => person.id === accountId)) {
-      people = [...people,{id:accountId,name:'我（当前账号）',aliases:['我','自己'],active:true,external:false}];
-    }
+    const saved=await getWorkspaceState().read();
+    if(saved.accountId!==accountId)throw new PreparationError('飞书账号已变化，未读取人员');
+    const cached=saved.catalog.recipients.filter(r=>r.kind==='person').map(r=>({id:r.id,name:r.name,aliases:saved.entries.filter(e=>e.recipientId===r.id).map(e=>e.query),active:false,external:true,...(r.isContact===false?{isContact:false}:{})}));
+    const catalogPending=syncContacts(read,operationId,{peopleOnly:true,cached}).catch(unavailable);
+    const searchesPending=(async()=>{
+      const lookup=await model({purpose:'creationContactQueries',kind,source:prompt},queryInstructions)
+        .catch(()=>{signal?.throwIfAborted();return {queries:[]};});
+      const queries=contactQueries(prompt,lookup.queries);
+      const searches:Array<Awaited<ReturnType<typeof searchContacts>>|undefined>=[];
+      let nextQuery=0;
+      await Promise.all(Array.from({length:Math.min(2,queries.length)},async()=>{
+        while(nextQuery<queries.length){const index=nextQuery++;searches[index]=await searchContacts(read,queries[index],operationId).catch(unavailable);}
+      }));
+      return searches;
+    })();
+    const [personalCatalog,searchResults]=await Promise.all([catalogPending,searchesPending]);
+    const contacts=personalCatalog?.people.filter(person=>person.isContact!==false)??[];
+    contactsComplete=contacts.length>0&&contacts.every(person=>person.active&&!person.external);
+    collect(personalCatalog);
+    for (const catalog of searchResults) collect(catalog);
+    const aliases=saved.entries;
+    const personalIds=new Set(contacts.map(person=>person.id));
+    people = personContext([...candidates.values()].map(person=>({...person,isContact:personalIds.has(person.id)})),accountId??'',aliases);
     return people;
   };
   const persistReceipt = async (receipt:Record<string,string>) => {
@@ -94,7 +99,7 @@ export async function createWorkspaceItem({kind,prompt,operationId,signal,onConf
       return [notification,'飞书已创建，本地执行记录保存失败。'].filter(Boolean).join(' ');
     }
   }
-  const dependencies = {readAccount,readPeople,model,cli:runtime.cli};
+  const dependencies = {readAccount,readPeople,model,cli:runtime.cli,verifyAllContacts:()=>{if(!contactsComplete)throw new PreparationError('未能完整核验全部个人联系人，未提交操作');}};
   const publishConfirmed=(value:Parameters<NonNullable<CreateRequest['onConfirmed']>>[0])=>{
     try{onConfirmed?.(value);}catch{/* A UI observer cannot invalidate a remote receipt. */}
   };
