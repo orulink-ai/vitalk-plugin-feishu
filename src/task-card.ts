@@ -16,7 +16,7 @@ export function taskCard(task:Omit<TaskPlan,'action'>,guid:string){
   if(!/^[A-Za-z0-9-]{1,80}$/.test(guid)||!/^ou_[A-Za-z0-9_]+$/.test(task.assigneeId))throw new Error('任务通知对象或详情链接无效');
   const elements:Record<string,unknown>[]=[
     {tag:'div',text:{...plain('负责人'),text_size:'notation',text_color:'grey'}},
-    {tag:'person_list',persons:[{id:task.assigneeId}],show_name:true,show_avatar:true,size:'small'},
+    {tag:'person_list',persons:(task.assigneeIds??[task.assigneeId]).map(id=>({id})),show_name:true,show_avatar:true,size:'small'},
   ];
   if(task.due)elements.push({tag:'div',text:plain(`截止：${deadline(task.due)}`)});
   if(task.description.trim())elements.push({tag:'div',text:plain(task.description)});

@@ -1,6 +1,58 @@
 import {expect,it,vi} from 'vitest';
-import {searchContacts,syncContacts} from './contact-service';
+import {readMessageRecipient,searchContacts,syncContacts} from './contact-service';
+it('reads group details with bounded concurrency while retaining order and failed groups as ineligible',async()=>{
+ const waiting:(()=>void)[]=[];
+ let active=0,peak=0;
+ const cli=vi.fn(async(args:string[])=>{
+  if(args[1]!=='chats')return {chats:Array.from({length:9},(_,i)=>({chat_mode:'group',chat_id:`oc_${i}`,name:`群${i}`})),has_more:false};
+  active++;peak=Math.max(peak,active);
+  await new Promise<void>(resolve=>waiting.push(resolve));active--;
+  if(args.includes('oc_2'))throw Error('unavailable');
+  return {external:false,chat_status:'normal',chat_mode:'group'};
+ });
+ const pending=syncContacts(cli,'parallel-groups');
+ let initial=0;
+ for(let round=0;round<12;round++){
+  for(let tick=0;tick<10;tick++)await Promise.resolve();
+  if(round===0)initial=active;
+  waiting.splice(0).forEach(resolve=>resolve());
+ }
+ const result=await pending;
+ expect(initial).toBe(4);
+ expect(peak).toBe(4);
+ expect(result.chats.map(chat=>chat.id)).toEqual(Array.from({length:9},(_,i)=>`oc_${i}`));
+ expect(result.unverifiedIds).toEqual(['oc_2']);
+ expect(result.chats[2]).toMatchObject({active:false,external:true});
+});
 const status={is_activated:true,is_resigned:false,is_exited:false,is_unjoin:false,is_frozen:false};
+it.each([false,true])('preserves synthetic self provenance unless a real p2p contact is present: %s',async(realSelfContact)=>{
+ const cli=vi.fn(async(args:string[])=>args[0]==='api'?{items:[{open_id:'ou_self',name:'本人',status}]}:{chats:realSelfContact?[{chat_mode:'p2p',p2p_target_type:'user',p2p_target_id:'ou_self',name:'本人'}]:[],has_more:false});
+ const result=await syncContacts(cli,'self-provenance',{cached:[{id:'ou_self',name:'本人',aliases:['我的称呼'],active:true,external:false,isContact:false}]});
+ expect(result.people[0]).toMatchObject({id:'ou_self',aliases:['我的称呼'],active:true,external:false});
+ expect(result.people[0].isContact!==false).toBe(realSelfContact);
+});
+it('a name-search match does not promote synthetic self to a personal contact',async()=>{
+ const cli=vi.fn(async(args:string[])=>args[0]==='api'?{items:[{open_id:'ou_self',name:'本人',status}]}:{users:[{open_id:'ou_self',name:'本人',status}],has_more:false});
+ const result=await searchContacts(cli,'本人','search-self',{cached:[{id:'ou_self',name:'本人',aliases:[],active:true,external:false,isContact:false}]});
+ expect(result.people[0]).toMatchObject({id:'ou_self',isContact:false,active:true,external:false});
+});
+it('revalidates real compact CLI identities when directory profiles omit lifecycle fields',async()=>{
+ const cli=vi.fn(async(args:string[])=>{
+  if(args[1]==='+chat-list')return {chats:[{chat_mode:'p2p',p2p_target_type:'user',p2p_target_id:'ou_ice',name:'阳晓冰'}],has_more:false};
+  if(args[0]==='api')return {items:[{open_id:'ou_ice',name:'阳晓冰'}]};
+  if(args.includes('--left-organization'))return {users:[],has_more:false};
+  return {users:[{open_id:'ou_ice',localized_name:'阳晓冰',is_activated:true,is_cross_tenant:false}],has_more:false};
+ });
+ const result=await syncContacts(cli,'compact-profile',{peopleOnly:true});
+ expect(result.people).toEqual([{id:'ou_ice',name:'阳晓冰',aliases:[],active:true,external:false}]);
+ expect(cli.mock.calls.some(([args])=>args.includes('--user-ids')&&!args.includes('--left-organization')&&args.includes('--exclude-external-users'))).toBe(true);
+});
+it('does not allow an activated compact identity that is explicitly departed',async()=>{
+ const cli=vi.fn(async(args:string[])=>args[0]==='api'?{items:[]}:
+  args.includes('--left-organization')?{users:[{open_id:'ou_ice'}],has_more:false}:
+  {users:[{open_id:'ou_ice',localized_name:'阳晓冰',is_activated:true,is_cross_tenant:false}],has_more:false});
+ expect((await searchContacts(cli,'阳晓冰','compact-departed')).people).toEqual([]);
+});
 it('pages chats, preserves aliases and excludes departed members using batch lifecycle',async()=>{
  const cli=vi.fn(async(args:string[])=>{
   if(args[1]==='chats')return {external:false,chat_status:'normal',chat_mode:'group'};
@@ -95,4 +147,37 @@ it('does not qualify a CLI search hit explicitly marked cross-tenant',async()=>{
    {users:[{open_id:'ou_cross',localized_name:'同名',is_cross_tenant:true}],has_more:false});
  const result=await searchContacts(cli,'同名','search');
  expect(result.people.some(person=>person.active&&!person.external)).toBe(false);
+});
+
+it('revalidates only the selected person without enumerating chats',async()=>{
+ const cli=vi.fn(async()=>({data:{items:[{open_id:'ou_ice',name:'阳晓冰',status}]}}));
+ const result=await readMessageRecipient(cli,{id:'ou_ice',name:'小冰',kind:'person',aliases:[],active:true,external:false},'selected-person');
+ expect(result).toMatchObject({id:'ou_ice',kind:'person',active:true,external:false});
+ expect(cli).toHaveBeenCalledTimes(1);
+ const args=cli.mock.calls[0] as unknown as [string[],string];
+ expect(args[0][0]).toBe('api');
+ expect(args[0].join(' ')).toContain('ou_ice');
+});
+it('rejects a departed selected person even when cached as active',async()=>{
+ const cli=vi.fn(async()=>({data:{items:[{open_id:'ou_ice',status:{...status,is_resigned:true}}]}}));
+ expect(await readMessageRecipient(cli,{id:'ou_ice',name:'小冰',kind:'person',aliases:[],active:true,external:false},'departed')).toBeUndefined();
+});
+it('revalidates only the selected group and excludes external groups',async()=>{
+ const cli=vi.fn(async()=>({data:{name:'团队',external:true,chat_status:'normal',chat_mode:'group'}}));
+ expect(await readMessageRecipient(cli,{id:'oc_team',name:'团队',kind:'group',aliases:[],active:true,external:false},'selected-group')).toMatchObject({external:true});
+ expect(cli).toHaveBeenCalledTimes(1);
+ expect(cli.mock.calls[0]).toEqual([['im','chats','get','--chat-id','oc_team','--as','user','--format','json'],'selected-group']);
+});
+it('overlaps compact identity and departure reads but waits for both before qualifying people',async()=>{
+ let releaseIdentity!:(value:unknown)=>void;let releaseDeparture!:(value:unknown)=>void;
+ const cli=vi.fn(async(args:string[])=>{
+  if(args[1]==='+chat-list')return {chats:[{chat_mode:'p2p',p2p_target_type:'user',p2p_target_id:'ou_ice',name:'小冰'}],has_more:false};
+  if(args[0]==='api')return {items:[]};
+  return new Promise(resolve=>{if(args.includes('--left-organization'))releaseDeparture=resolve;else releaseIdentity=resolve;});
+ });
+ let done=false;const pending=syncContacts(cli,'parallel-identity',{peopleOnly:true}).finally(()=>{done=true;});
+ await vi.waitFor(()=>{expect(releaseIdentity).toBeTypeOf('function');expect(releaseDeparture).toBeTypeOf('function');});
+ releaseDeparture({users:[{open_id:'ou_ice'}],has_more:false});await Promise.resolve();expect(done).toBe(false);
+ releaseIdentity({users:[{open_id:'ou_ice',localized_name:'阳晓冰',is_activated:true,is_cross_tenant:false}],has_more:false});
+ expect((await pending).people).toEqual([]);
 });

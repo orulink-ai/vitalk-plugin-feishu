@@ -11,6 +11,7 @@ type Dependencies={
   cli:Cli;
   onCreated?:(receipt:TaskReceipt,plan:TaskPlan)=>Promise<void>;
   shareCard?:boolean;
+  verifyAllContacts?:()=>void|Promise<void>;
 };
 function requireTaskGrant(account:CliAuthStatus){
   if(!/^ou_[A-Za-z0-9_-]+$/.test(account.accountId))throw new Error('飞书账号未确认，请重新检查连接。');
@@ -24,11 +25,12 @@ export async function runTaskCreation(input:{source:string;operationId:string;re
   requireTaskGrant(before);
   const people=await deps.readPeople();
   const plan=await prepareTask(input.source,people,input.referenceTime,deps.model);
+  if(plan.assigneeScope==='allContacts')await deps.verifyAllContacts?.();
   const current=await deps.readAccount();
   requireTaskGrant(current);
   if(current.accountId!==before.accountId)throw new Error('飞书账号已切换，未创建任务。');
   const receipt=await createTask(deps.cli,plan,input.operationId);
-  const task={...receipt,assignee:people.find(person=>person.id===plan.assigneeId)!.name,summary:plan.summary};
+  const task={...receipt,assignee:(plan.assigneeIds??[plan.assigneeId]).map(id=>people.find(person=>person.id===id)!.name).join('、'),summary:plan.summary};
   try{await deps.onCreated?.(task,plan);}catch{
     return {...task,plan,notification:{status:'not_sent' as const,reason:'任务已创建，本地回执保存失败，通知未发送；请在飞书查看任务。'}};
   }

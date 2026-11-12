@@ -59,3 +59,26 @@ it('reads recording state without a workspace or CLI refresh',async()=>{
  expect(bridge.status).toHaveBeenCalledTimes(1);
  expect(bridge.feishu).not.toHaveBeenCalled();expect(bridge.get).not.toHaveBeenCalled();
 });
+
+it('recovers a cancelled display read once after voice has become idle',async()=>{
+ bridge.feishu.mockRejectedValueOnce(Object.assign(Error('cancelled read'),{code:'cancelled'}));
+ bridge.status.mockResolvedValue({actionId:null,status:'idle'});
+ await expect(experimentsRequest({action:'read'})).resolves.toEqual({config:{pluginShortcuts:[]}});
+ expect(bridge.feishu).toHaveBeenCalledTimes(2);
+});
+it('does not retry a cancelled read while another voice operation is active',async()=>{
+ const error=Object.assign(Error('cancelled read'),{code:'cancelled'});
+ bridge.feishu.mockRejectedValueOnce(error);
+ bridge.status.mockResolvedValue({actionId:'task',status:'recording'});
+ await expect(experimentsRequest({action:'read'})).rejects.toBe(error);
+ expect(bridge.feishu).toHaveBeenCalledTimes(1);
+});
+it('never retries a cancelled mutation or loops on persistent read cancellation',async()=>{
+ const error=Object.assign(Error('cancelled'),{code:'cancelled'});
+ bridge.feishu.mockRejectedValue(error);
+ bridge.status.mockResolvedValue({actionId:null,status:'idle'});
+ await expect(experimentsRequest({action:'read'})).rejects.toBe(error);
+ expect(bridge.feishu).toHaveBeenCalledTimes(2);
+ await expect(experimentsRequest({action:'feishuMessageSend',id:'draft'})).rejects.toBe(error);
+ expect(bridge.feishu).toHaveBeenCalledTimes(3);
+});

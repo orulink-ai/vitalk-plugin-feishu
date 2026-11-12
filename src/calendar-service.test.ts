@@ -81,7 +81,30 @@ it('creates a personal event without inviting anyone or returning an unsafe link
   const cli=vi.fn().mockResolvedValueOnce(calendar).mockResolvedValueOnce({event:{...event.event,app_link:'https://applink.feishu.cn.evil.test/event'}});
   const receipt=await createCalendar(cli,{...plan,participantIds:[]},operationId);
   expect(receipt).toMatchObject({eventId:'event_1',url:'',status:'completed',invitationStatus:'not_sent',participantCount:0});
-  expect(cli).toHaveBeenCalledTimes(2);
+  expect(cli).toHaveBeenCalledTimes(3);
+});
+
+it('reads back the same created event when its creation receipt omits the link',async()=>{
+ const cli=vi.fn().mockResolvedValueOnce(calendar)
+  .mockResolvedValueOnce({event:{event_id:'event_1'}}).mockResolvedValueOnce(event);
+ const onCreated=vi.fn();
+ const receipt=await createCalendar(cli,{...plan,participantIds:[]},operationId,{onCreated});
+ expect(receipt.url).toBe(event.event.app_link);
+ expect(onCreated).toHaveBeenCalledWith(expect.objectContaining({url:event.event.app_link}));
+ expect(cli.mock.calls[2]).toEqual([
+  ['calendar','events','get','--calendar-id','cal_primary','--event-id','event_1','--as','user','--format','json'],
+  `${operationId}:read-link`,
+ ]);
+});
+
+it.each([
+ {event:{event_id:'another_event',app_link:event.event.app_link}},
+ {event:{event_id:'event_1',app_link:'https://evil.test/event'}},
+])('does not attach an unverified readback link or recreate the event',async readback=>{
+ const cli=vi.fn().mockResolvedValueOnce(calendar)
+  .mockResolvedValueOnce({event:{event_id:'event_1'}}).mockResolvedValueOnce(readback);
+ await expect(createCalendar(cli,{...plan,participantIds:[]},operationId)).resolves.toMatchObject({eventId:'event_1',url:'',status:'completed'});
+ expect(cli).toHaveBeenCalledTimes(3);
 });
 
 it('preserves the official tenant calendar event app link in the receipt',async()=>{

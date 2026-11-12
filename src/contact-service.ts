@@ -37,8 +37,11 @@ async function pages(cli:Cli,args:string[],key:string,operationId:string):Promis
 /** Visible candidates are never a company-wide roster. Cached aliases are keyed by
  * exact user ID; old active flags cannot establish current lifecycle evidence. */
 async function qualify(cli:Cli,candidates:Row[],operationId:string,options:Options):Promise<Pick<ContactCatalog,'people'|'unverifiedIds'>> {
- const people=new Map<string,Person>();const excluded=new Set<string>();const verified=new Set<string>();const externalIds=new Set<string>();
+ const people=new Map<string,Person>();const excluded=new Set<string>();const verified=new Set<string>();const activated=new Set<string>();const externalIds=new Set<string>();
  const aliases=new Map((options.cached??[]).map(person=>[person.id,person.aliases.filter(alias=>typeof alias==='string'&&alias.trim())]));
+ // Identity/profile reads keep synthetic self selectable; only a real p2p
+ // session can establish that it also belongs to the personal contact roster.
+ const nonContacts=new Set((options.cached??[]).filter(person=>person.isContact===false).map(person=>person.id));
  const knownIds=new Set(candidates.map(candidate=>candidate.open_id));
  // Preserve previous user candidates, but recheck lifecycle rather than trusting
  // cached active/external flags. This matches the existing catalog refresh behavior.
@@ -49,8 +52,9 @@ async function qualify(cli:Cli,candidates:Row[],operationId:string,options:Optio
   if(unavailable(candidate))excluded.add(candidate.open_id);
   if(candidate.is_cross_tenant===true||candidate.is_external===true)externalIds.add(candidate.open_id);
   const previous=people.get(candidate.open_id);
-  people.set(candidate.open_id,{id:candidate.open_id,name,aliases:[...new Set([...(aliases.get(candidate.open_id)??[]),...(previous?.aliases??[])])],active:false,external:candidate.is_cross_tenant!==false&&candidate.is_external!==false});
+  people.set(candidate.open_id,{id:candidate.open_id,name,aliases:[...new Set([...(aliases.get(candidate.open_id)??[]),...(previous?.aliases??[])])],active:false,external:candidate.is_cross_tenant!==false&&candidate.is_external!==false,...(candidate.isContact!==true&&(candidate.isContact===false||nonContacts.has(candidate.open_id))?{isContact:false}:{})});
   if(completeStatus(candidate)&&!unavailable(candidate))verified.add(candidate.open_id);
+  if(lifecycle(candidate).is_activated===true&&!unavailable(candidate)&&(candidate.is_cross_tenant===false||candidate.is_external===false))activated.add(candidate.open_id);
  }
  const ids=[...people.keys()];
  for(let start=0;start<ids.length;start+=50) {
@@ -69,17 +73,47 @@ async function qualify(cli:Cli,candidates:Row[],operationId:string,options:Optio
     else if(typeof profile.is_external==='boolean')person.external=profile.is_external;
     person.name=text(profile.name)??person.name;
    }
-  } catch { /* Existing search permission provides the explicit departure fallback below. */ }
+  } catch { /* The user identity search below can supply current compact profiles. */ }
  }
+ // User-scoped directory reads can return a name/open_id without administrative
+ // lifecycle fields. Resolve these exact IDs through the CLI's user identity
+ // endpoint; do not discard the candidate or invent its missing flags.
+ const unresolved=ids.filter(member=>!verified.has(member)&&!activated.has(member)&&!excluded.has(member));
+ // These independent reads must both finish: a fast positive identity can never
+ // override departure evidence, including when responses arrive in reverse order.
  const unknown=ids.filter(member=>!verified.has(member)&&!excluded.has(member));
+ const departureChecked=new Set<string>();
+ await Promise.all([(async()=>{
+ for(let start=0;start<unresolved.length;start+=30){
+  const batch=unresolved.slice(start,start+30);
+  try{
+   const response=data(await cli(['contact','+search-user','--user-ids',batch.join(','),'--page-size','30','--exclude-external-users',...suffix],operationId));
+   if(response.has_more!==false||!Array.isArray(response.users))continue;
+   for(const value of response.users){
+    const profile=row(value);if(!profile||!id(profile.open_id)||!batch.includes(profile.open_id))continue;
+    const person=people.get(profile.open_id)!;
+    if(unavailable(profile))excluded.add(profile.open_id);
+    if(profile.is_cross_tenant===true||profile.is_external===true)externalIds.add(profile.open_id);
+    if(lifecycle(profile).is_activated===true&&!unavailable(profile)&&(profile.is_cross_tenant===false||profile.is_external===false)){
+     activated.add(profile.open_id);person.external=false;
+    }
+    person.name=text(profile.localized_name)??text(profile.name)??person.name;
+   }
+  }catch{ /* Unverified identities remain ineligible. */ }
+ }
+ })(),(async()=>{
  for(let start=0;start<unknown.length;start+=30) {
   const batch=unknown.slice(start,start+30);let response:Row;
   try {response=data(await cli(['contact','+search-user','--user-ids',batch.join(','),'--left-organization','--page-size','30',...suffix],operationId));}
   catch {throw new Error('无法核验联系人在职状态，请检查连接或补充通讯录权限后刷新');}
   if(response.has_more!==false||!Array.isArray(response.users))throw new Error('联系人在职状态核验不完整，请刷新后重试');
   for(const value of response.users) {const member=row(value);if(!member||!id(member.open_id))throw new Error('联系人在职状态格式无效');if(batch.includes(member.open_id))excluded.add(member.open_id);}
+  for(const member of batch)departureChecked.add(member);
  }
- // The departure search can exclude a returned member, but absence is not proof of active status.
+ })()]);
+ for(const member of departureChecked)if(activated.has(member)&&!excluded.has(member))verified.add(member);
+ // Absence from departure results alone is insufficient: compact identities also
+ // require a current explicit activation and internal-tenant response above.
  for(const member of excluded)people.delete(member);
  for(const person of people.values()){
   person.active=verified.has(person.id);
@@ -110,18 +144,36 @@ export async function syncContacts(cli:Cli,operationId:string,options:SyncOption
   if(session.chat_status!==undefined&&session.chat_status!=='normal')continue;
   const name=text(session.name);if(!name)continue;
   if(session.chat_mode==='p2p') {
-   if(session.p2p_target_type==='user'&&id(session.p2p_target_id))candidates.push({...session,open_id:session.p2p_target_id});
+   if(session.p2p_target_type==='user'&&id(session.p2p_target_id))candidates.push({...session,open_id:session.p2p_target_id,isContact:true});
   }else if(!options.peopleOnly&&session.chat_mode==='group'&&typeof session.chat_id==='string'&&/^oc_[A-Za-z0-9_]+$/.test(session.chat_id)) chats.set(session.chat_id,{id:session.chat_id,name,kind:'chat',active:false,external:true});
  }
  const eligible=await qualify(cli,candidates,operationId,options);
- for(const chat of chats.values()){
+ const groups=[...chats.values()];let next=0;
+ // These are independent read-only lookups. Limit concurrent CLI processes,
+ // retain catalog order, and require the same positive identity evidence.
+ await Promise.all(Array.from({length:Math.min(4,groups.length)},async()=>{
+ while(next<groups.length){
+  const chat=groups[next++];
   try{
    const detail=data(await cli(['im','chats','get','--chat-id',chat.id,...suffix],operationId));
    chat.active=detail.chat_status==='normal' && detail.chat_mode==='group';
    chat.external=detail.external!==false;
   }catch{ /* Visible but unverifiable groups remain ineligible, never default internal. */ }
-  if(!chat.active || chat.external)eligible.unverifiedIds.push(chat.id);
  }
+ }));
+ for(const chat of groups)if(!chat.active || chat.external)eligible.unverifiedIds.push(chat.id);
  return {...eligible,chats:[...chats.values()],scope:'visible',companyComplete:false};
 }
 
+
+/** Revalidate one selected object without enumerating unrelated contacts or groups. */
+export async function readMessageRecipient(cli:Cli,selected:import('./message-intent').MessageRecipient,operationId:string):Promise<import('./message-intent').MessageRecipient|undefined>{
+ if(selected.kind==='person'){
+  const result=await qualify(cli,[],operationId,{cached:[selected]});
+  const person=result.people.find(p=>p.id===selected.id);
+  return person?{...person,kind:'person'}:undefined;
+ }
+ if(!/^oc_[A-Za-z0-9_]+$/.test(selected.id))return undefined;
+ const detail=data(await cli(['im','chats','get','--chat-id',selected.id,...suffix],operationId));
+ return {...selected,name:text(detail.name)||selected.name,active:detail.chat_status==='normal'&&detail.chat_mode==='group',external:detail.external!==false};
+}

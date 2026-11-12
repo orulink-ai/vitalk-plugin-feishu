@@ -53,3 +53,16 @@ it('rejects catalog persistence after the originating account changes',async()=>
  const request=vi.fn();const service=createWorkspaceStateService(request as any,async()=>({accountId:'ou_other',scopes:[]}));
  await expect(service.saveCatalog({recipients:[],partial:true,lastSync:null},'ou_me')).rejects.toThrow('账号');expect(request).not.toHaveBeenCalled();
 });
+
+it('brackets history IO with two fresh account checks without redundant nested authentication',async()=>{
+ const values=new Map<string,unknown>([['workspace.ou_me',{accountId:'ou_me',entries:[],catalog:{recipients:[]},config:{},enabled:false}]]);
+ const request=vi.fn(async(m:string,p:any)=>m==='storage.get'?{value:structuredClone(values.get(p.key)??null)}:(values.set(p.key,structuredClone(p.value)),{ok:true}));
+ const account=vi.fn(async()=>({accountId:'ou_me',scopes:[]}));
+ await createWorkspaceStateService(request as any,account).appendHistory({id:'r',prompt:'x',text:'ok',status:'completed'},'ou_me');
+ expect(account).toHaveBeenCalledTimes(2);expect(values.get('workspace-history.ou_me')).toHaveLength(1);
+});
+it('does not write history when account switches during history IO',async()=>{
+ let current='ou_me';const request=vi.fn(async(m:string,p:any)=>{if(m==='storage.get'){current='ou_other';return {value:p.key==='workspace.ou_me'?{accountId:'ou_me',entries:[],catalog:{recipients:[]},config:{},enabled:false}:[]};}return {ok:true};});
+ await expect(createWorkspaceStateService(request as any,async()=>({accountId:current,scopes:[]})).appendHistory({id:'r',prompt:'x',text:'ok',status:'completed'},'ou_me')).rejects.toThrow('账号');
+ expect(request.mock.calls.some(([m])=>m==='storage.set')).toBe(false);
+});

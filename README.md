@@ -4,9 +4,9 @@
 
 当前运行入口直接加载 `src/original-workspace/QuickMessagePage.tsx`，按消息、任务、日程划分主工作区，将联系人、操作记录、设置放到辅助导航。原生调用统一通过本仓库 SDK 适配器。2026-11-04 已在 Windows 源码桌面端完成消息发送、无截止任务和默认半小时日程的原生接口实测；用户真实麦克风任务测试成功并确认，负责人匹配和通知发送成功。真实麦克风消息/日程未单独测试，不把接口验收写成三类物理录音均通过。
 
-独立插件 ID 为 `vitalk-plugin-feishu`，当前版本 0.1.7。页面和业务调用位于本仓库，桌面端保留录音、插件快捷键、授权、安全存储和权限校验网关。插件只使用 `vitalk-plugin/v1` SDK 通道访问飞书。
+独立插件 ID 为 `vitalk-plugin-feishu`，本次发布版本 0.1.8，需要 ViTalk 0.6.22 或更新版本。页面和飞书业务调用位于本仓库，桌面端提供录音、插件快捷键、安全存储和权限校验网关。插件通过 SDK 调用已配置的模型理解指令、整理内容，并管理自己的飞书 CLI。
 
-`npm ci` 后运行 `npm run typecheck`、`npm test`、`npm run build`。构建产物在 `dist/vitalk-plugin-feishu.vitalk-plugin.json`，可从 ViTalk 插件商店手动导入。安装时确认插件实际使用的能力权限，启用后在插件设置中配置语音快捷键。
+`npm ci` 后运行 `npm run typecheck`、`npm test`、`npm run build`。构建产物在 `dist/vitalk-plugin-feishu.vitalk-plugin.json`，可从 ViTalk 插件商店手动导入。安装并启用后在插件设置中配置语音快捷键。
 
 消息先准备草稿、检查收件人和正文，再明确确认发送。任务页面支持创建、列表与完成，日程页面支持创建与查看；创建参数由所选文字模型提取，插件负责飞书业务校验、CLI 调用、去重和回执。普通“会议”按日程处理，未指定结束时间默认 30 分钟；视频会议不在本版自动创建范围内。
 
@@ -21,11 +21,13 @@
 插件语音录音会把当前飞书账号的通讯录名称和对象称呼作为会话热词，帮助 STT 识别人名；普通听写不加载此词表。已保存的称呼绑定优先匹配真实对象。若名称仍有歧义，启用 JEV 时它会结合原话和候选联系人给出建议。消息仍在草稿浮窗确认；任务和日程在不能唯一确认对象时会显示建议并停止执行，用户可说全名或在插件内绑定称呼后重试。JEV 排序不能代替发送或邀请授权。
 # 飞书 CLI 依赖
 
-插件清单的 `nativeDependencies` 声明 CLI 1.0.98 的版本、平台、原始可执行文件、下载地址和 SHA-256。插件自己的 v0.1.7 GitHub release 承载 Windows、macOS、Linux 的 x86_64 与 aarch64 资源。安装由桌面原生依赖管理器按清单下载并校验，保存在插件专属运行目录。使用者无需安装 Node.js 或配置全局 npm 包。插件设置页通过专用的 feishuPluginCliStatus 和 feishuPluginCliInstall 接口检查和补装缺失资源，之后在插件内完成设备授权。旧桌面端不支持这些接口时提示更新 ViTalk，安装请求不会回退到旧的全局安装接口。
+插件清单的 `nativeDependencies` 声明 CLI 1.0.98 的版本、平台、原始可执行文件、下载地址和 SHA-256。插件自己的对应版本 GitHub release 承载 Windows、macOS、Linux 的 x86_64 与 aarch64 资源。安装由桌面原生依赖管理器按清单下载并校验，保存在插件专属运行目录。使用者无需安装 Node.js 或配置全局 npm 包。插件设置页通过专用的 feishuPluginCliStatus 和 feishuPluginCliInstall 接口检查和补装缺失资源，之后在插件内完成设备授权。旧桌面端不支持这些接口时提示更新 ViTalk，安装请求不会回退到旧的全局安装接口。
 
 发布维护者运行 `npm ci`、`npm run typecheck`、`npm test`、`npm run release:prepare`。准备脚本需要 Node.js 与 Python 3，仅在发布构建时使用。它依据 `native-dependencies.lock.json` 下载 larksuite/cli v1.0.98 官方归档，验证固定归档摘要，再读取指定文件并验证清单中的可执行文件摘要。整个过程仅将校验通过的独立二进制写入 `dist/`。
 
 同一 release 应上传 `vitalk-plugin-feishu.vitalk-plugin.json`、对应 `.sha256`、六个 `lark-cli-1.0.98-<platform>` 资源、`native-checksums.txt` 和 `LICENSE.lark-cli`。发布前须在目标桌面版本完成插件安装、禁用、重新启用与 CLI 调用验收。准备脚本只生成文件，发布由维护者另行执行。MIT 许可和上游版权声明随 CLI 资源一起分发。
+
+消息确认和历史记录复用 ViTalk 自带悬浮窗，需要 ViTalk 0.6.22 或更新版本提供的 `notice.present` 接口。宿主只渲染通用字段和返回确认回执，飞书 CLI、联系人、草稿及发送业务全部留在插件。插件不再安装或启动额外的消息弹窗程序。
 
 CLI 的升级和缺失文件恢复由插件清单驱动。卸载或停用插件后，宿主停止使用其运行时；已校验的运行文件可以保留供重新安装使用。账号凭据沿用原有 CLI 授权存储，依赖更新不会触发重新授权。
 

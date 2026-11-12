@@ -11,6 +11,12 @@ const named={...personal,participantScope:'named',participantIds:['ou_ice']};
 const company={...personal,participantScope:'allCurrentEmployees',scopeEvidence:'每位仍在我们公司工作的同事'};
 const companyInput={...input,source:'明天下午三点和每位仍在我们公司工作的同事聊半小时方案'};
 const status={is_resigned:false,is_exited:false,is_unjoin:false,is_frozen:false,is_activated:true};
+it('all contacts invites verified individuals without reading the company roster or including chats',async()=>{
+ const deps=fixture({...personal,participantScope:'allContacts',participantIds:[],scopeEvidence:'所有联系人'});
+ deps.readPeople.mockResolvedValue([person('ou_ice'),person('ou_second'),{...person('oc_group'),kind:'group'},person('ou_external',true,true)]);
+ const result=await runCalendarCreation({...input,source:'明天下午三点邀请所有联系人讨论方案半小时'},deps);
+ expect(result.plan.participantIds).toEqual(['ou_ice','ou_second']);expect(deps.rosterRequest).not.toHaveBeenCalled();
+});
 
 it('shares cards only to receipt-confirmed attendees after calendar creation',async()=>{
   const deps=fixture(named);
@@ -75,7 +81,8 @@ it('creates a personal calendar event directly from natural language',async()=>{
   expect(deps.model.mock.calls[0][0]).toMatchObject({source:input.source,referenceTime:input.referenceTime,mode:'calendar'});
   expect(deps.model).toHaveBeenCalledTimes(2);
   expect(deps.rosterRequest).not.toHaveBeenCalled();
-  expect(deps.cli.mock.calls.map(([args])=>args[1])).toEqual(['calendars','events']);
+  expect(deps.cli.mock.calls.map(([args])=>args[1])).toEqual(['calendars','events','events']);
+  expect(deps.cli.mock.calls.filter(([args])=>args[1]==='events').map(([args])=>args[2])).toEqual(['create','get']);
 });
 
 it('uses only eligible named contacts and passes their exact IDs to the invite service',async()=>{
@@ -157,7 +164,8 @@ it('preserves an already created event when a fresh invite authorization check f
     .mockResolvedValue({accountId:'ou_self',scopes:[]});
   const result=await runCalendarCreation({...input,source:'明天下午三点跟小冰对齐半小时'},deps);
   expect(result.receipt).toMatchObject({eventId:'event_1',status:'partial',invitationStatus:'cancelled'});
-  expect(deps.cli.mock.calls.map(([args])=>args[1])).toEqual(['calendars','freebusys','events']);
+  expect(deps.cli.mock.calls.map(([args])=>args[1])).toEqual(['calendars','freebusys','events','events']);
+  expect(deps.cli.mock.calls.filter(([args])=>args[1]==='events').map(([args])=>args[2])).toEqual(['create','get']);
 });
 
 it('checks cancellation after the live account read and before submitting creation',async()=>{

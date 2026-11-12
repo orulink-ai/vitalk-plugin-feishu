@@ -33,11 +33,23 @@ async function readVoiceShortcuts(){
 }
 
 // Share only an in-flight snapshot; never cache account checks after settlement.
+async function readWorkspaceSnapshot():Promise<ExperimentsSnapshot>{
+  try {
+    return await feishu<ExperimentsSnapshot>('feishuWorkspaceRead');
+  } catch(error) {
+    // A read started during voice processing can lose its host lease when voice
+    // completes. Recover this display read once, never a send/create mutation.
+    if(!error || typeof error!=='object' || !('code' in error) || error.code!=='cancelled')throw error;
+    const status=await getClient().voice.status().catch(()=>null);
+    if(!status || status.status!=='idle' || status.actionId!==null)throw error;
+    return feishu<ExperimentsSnapshot>('feishuWorkspaceRead');
+  }
+}
 let snapshotRead:Promise<ExperimentsSnapshot>|undefined;
 export async function experimentsRequest<T = ExperimentsSnapshot>(request:ExperimentsRequest):Promise<T> {
   const {action,...params}=request;
   if(action==='read') {
-    snapshotRead??=Promise.all([feishu<ExperimentsSnapshot>('feishuWorkspaceRead'),readVoiceShortcuts()])
+    snapshotRead??=Promise.all([readWorkspaceSnapshot(),readVoiceShortcuts()])
       .then(([snapshot,pluginShortcuts])=>({...snapshot,config:{...snapshot.config,pluginShortcuts}}))
       .finally(()=>{snapshotRead=undefined;});
     return await snapshotRead as T;

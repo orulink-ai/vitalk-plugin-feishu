@@ -15,6 +15,7 @@ export type CalendarWorkflowDependencies = {
   beforeSubmit?: (phase:'create'|'invite') => void | Promise<void>;
   onCreated?: (receipt:CalendarReceipt,plan:Awaited<ReturnType<typeof prepareCalendar>>) => void | Promise<void>;
   shareCard?: boolean;
+  verifyAllContacts?:()=>void|Promise<void>;
 };
 
 const grants = [
@@ -47,6 +48,7 @@ export async function runCalendarCreation(input: {source:string;operationId:stri
   // company intent still have their own independent scope checks.
   const people = await deps.readPeople().catch(() => []);
   const plan = await prepareCalendar(input.source,people,input.referenceTime,deps.model);
+  if(plan.participantScope==='allContacts')await deps.verifyAllContacts?.();
   await verifyAccount();
   let participantIds = plan.participantIds;
   let rosterReadAt: number | undefined;
